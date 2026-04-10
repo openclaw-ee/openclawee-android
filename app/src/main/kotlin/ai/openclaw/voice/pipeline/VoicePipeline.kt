@@ -1,6 +1,8 @@
 package ai.openclaw.voice.pipeline
 
 import ai.openclaw.voice.audio.AudioRecorder
+import ai.openclaw.voice.llm.ApiLlmProcessor
+import ai.openclaw.voice.llm.ConversationHistory
 import ai.openclaw.voice.llm.LlmProcessor
 import ai.openclaw.voice.llm.RoutingLlmProcessor
 import ai.openclaw.voice.stt.WhisperTranscriber
@@ -17,19 +19,24 @@ import java.io.File
  *   Microphone → AudioRecorder → WhisperTranscriber → LlmProcessor → KokoroTTS → Speaker
  *
  * Recording ends either via 1-second silence (auto) or a manual [stopRecordingAndProcess] call.
+ * Conversation context is maintained in [conversationHistory] and can be reset via [clearConversation].
  */
 class VoicePipeline(
     private val context: Context,
     private val audioRecorder: AudioRecorder,
     private val whisper: WhisperTranscriber,
     private val kokoro: KokoroTTS,
-    private val llmProcessor: LlmProcessor = RoutingLlmProcessor(),
+    llmProcessor: LlmProcessor? = null,
+    val conversationHistory: ConversationHistory = ConversationHistory(),
     private val pipelineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
     companion object {
         private const val TAG = "VoicePipeline"
     }
+
+    private val llmProcessor: LlmProcessor = llmProcessor
+        ?: RoutingLlmProcessor(apiProcessor = ApiLlmProcessor(history = conversationHistory))
 
     interface Listener {
         fun onAmplitude(amplitude: Float)
@@ -77,6 +84,11 @@ class VoicePipeline(
         kotlinx.coroutines.delay(100)
 
         runPipeline()
+    }
+
+    /** Clears the conversation history so the next exchange starts fresh. */
+    fun clearConversation() {
+        conversationHistory.clear()
     }
 
     private suspend fun runPipeline() {

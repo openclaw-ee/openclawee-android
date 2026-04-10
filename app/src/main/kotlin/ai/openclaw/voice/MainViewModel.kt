@@ -98,6 +98,10 @@ class MainViewModel @JvmOverloads constructor(
         _errorMessage.value = null
     }
 
+    fun clearConversation() {
+        pipeline.clearConversation()
+    }
+
     // --------------- Private ---------------
 
     private fun checkModelsAndLoad() {
