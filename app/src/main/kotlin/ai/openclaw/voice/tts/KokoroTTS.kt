@@ -23,7 +23,7 @@ import java.nio.LongBuffer
  *
  * Reference: https://github.com/puff-dayo/Kokoro-82M-Android
  */
-class KokoroTTS(private val context: Context) {
+open class KokoroTTS(private val context: Context) {
 
     companion object {
         private const val TAG = "KokoroTTS"

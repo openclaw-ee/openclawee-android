@@ -52,6 +52,13 @@ android {
     androidResources {
         noCompress += listOf("onnx", "bin", "tflite")
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -70,4 +77,15 @@ dependencies {
     // TensorFlow Lite for Whisper STT
     implementation(libs.tensorflow.lite)
     implementation(libs.tensorflow.lite.support)
+
+    // Unit test dependencies
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.10")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("org.robolectric:robolectric:4.11.1")
+
+    // Instrumented test dependencies
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

@@ -22,7 +22,7 @@ import kotlin.math.PI
  * The model expects a log-mel spectrogram input of shape [1, 80, 3000]
  * (80 mel bins × 3000 time frames = 30 seconds at 16kHz with 10ms hop).
  */
-class WhisperTranscriber(private val context: Context) {
+open class WhisperTranscriber(private val context: Context) {
 
     companion object {
         private const val TAG = "WhisperTranscriber"

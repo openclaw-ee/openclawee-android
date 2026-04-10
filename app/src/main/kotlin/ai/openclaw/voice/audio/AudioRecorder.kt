@@ -14,7 +14,7 @@ import java.nio.ByteOrder
  * Records audio from the microphone at 16kHz mono 16-bit PCM and saves to WAV.
  * This format is required by the Whisper STT model.
  */
-class AudioRecorder {
+open class AudioRecorder {
 
     companion object {
         private const val TAG = "AudioRecorder"
@@ -43,13 +43,7 @@ class AudioRecorder {
             return
         }
 
-        val record = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            SAMPLE_RATE,
-            CHANNEL_CONFIG,
-            AUDIO_FORMAT,
-            bufferSize
-        )
+        val record = createAudioRecord()
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {
             Log.e(TAG, "AudioRecord failed to initialize")
@@ -104,7 +98,16 @@ class AudioRecorder {
 
     fun isRecording() = isRecording
 
-    private fun computeRms(buffer: ShortArray, length: Int): Float {
+    /** Overridable factory — allows tests to inject a fake AudioRecord. */
+    internal open fun createAudioRecord(): AudioRecord = AudioRecord(
+        MediaRecorder.AudioSource.MIC,
+        SAMPLE_RATE,
+        CHANNEL_CONFIG,
+        AUDIO_FORMAT,
+        bufferSize
+    )
+
+    internal fun computeRms(buffer: ShortArray, length: Int): Float {
         var sum = 0.0
         for (i in 0 until length) {
             val sample = buffer[i].toDouble() / Short.MAX_VALUE
