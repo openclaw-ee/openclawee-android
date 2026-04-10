@@ -129,6 +129,38 @@ the STT pipeline, removing the need for a manual stop.
 
 ---
 
+## Project Board
+
+The Chloe project is tracked on the [GitHub Project board](https://github.com/orgs/openclaw-ee/projects/1).
+
+**Track issues only — never add PRs to the board directly.**
+
+PRs are linked to their issue via `Closes #<number>` in the PR description. When you open an issue card on the board, the linked PR is visible in the "Linked pull requests" field. There is no need to add PRs as separate board items — doing so creates clutter and confusion.
+
+### Statuses
+
+| Status | Meaning |
+|--------|---------|
+| 📋 Roadmap | Captured for the future, not yet prioritised |
+| 🗂 Backlog | Prioritised and ready to be picked up, but may need refinement |
+| 🔍 Ready | Fully defined, acceptance criteria clear — can start immediately |
+| 🚧 In Progress | Being actively worked on |
+| 👀 In Review | PR open, waiting for review |
+| ✅ Done | Merged to main |
+
+Work is only picked up from **🔍 Ready**. If something is in Backlog and needs to be started, refine and move it to Ready first.
+
+Only one or two issues should be **🚧 In Progress** at a time.
+
+### Who manages the board
+
+Devon (the AI dev manager) is responsible for:
+- Adding new issues to the board when created
+- Moving issues through statuses as work progresses (Backlog → Ready → In Progress → In Review)
+- Removing any PRs that accidentally get added
+
+Paolo moves issues to **✅ Done** by merging the associated PR.
+
 ## Labels
 
 Apply at least one scope label to every PR:
