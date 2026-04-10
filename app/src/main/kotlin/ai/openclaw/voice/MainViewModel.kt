@@ -8,6 +8,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel @JvmOverloads constructor(
+    application: Application,
+    private val audioRecorder: AudioRecorder = AudioRecorder(),
+    private val whisper: WhisperTranscriber = WhisperTranscriber(application),
+    private val kokoro: KokoroTTS = KokoroTTS(application),
+    pipelineOverride: VoicePipeline? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MainViewModel"
@@ -48,10 +56,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --------------- Components ---------------
 
-    private val audioRecorder = AudioRecorder()
-    private val whisper = WhisperTranscriber(application)
-    private val kokoro = KokoroTTS(application)
-    private val pipeline = VoicePipeline(application, audioRecorder, whisper, kokoro)
+    private val pipeline: VoicePipeline = pipelineOverride
+        ?: VoicePipeline(application, audioRecorder, whisper, kokoro)
 
     init {
         pipeline.listener = object : VoicePipeline.Listener {
@@ -95,7 +101,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // --------------- Private ---------------
 
     private fun checkModelsAndLoad() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val whisperReady = whisper.isModelAvailable
             val kokoroReady = kokoro.isModelAvailable
 
@@ -133,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun stopListeningAndProcess() {
         _appState.value = AppState.PROCESSING
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             pipeline.stopRecordingAndProcess()
             withContext(Dispatchers.Main) {
                 if (_appState.value == AppState.SPEAKING || _appState.value == AppState.PROCESSING) {
