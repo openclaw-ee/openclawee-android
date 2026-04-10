@@ -1,0 +1,37 @@
+name: Task
+description: Technical work with no direct user-facing change (refactor, dependency update, infra, CI)
+title: "chore: "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for technical tasks that don't map to a user-visible feature or bug.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What needs to be done
+      description: Clear description of the technical work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why / motivation
+      description: Why is this work needed? What problem does it solve or what does it enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How do we know this task is complete?
+      placeholder: |
+        - [ ] Gradle dependency updated to version X
+        - [ ] All existing tests still pass
+        - [ ] No regressions in build time
+    validations:
+      required: true
