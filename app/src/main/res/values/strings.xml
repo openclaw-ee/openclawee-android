@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenClaw Voice</string>
+
+    <!-- Status messages -->
+    <string name="status_idle">Tap to speak</string>
+    <string name="status_listening">Listening… (tap to stop)</string>
+    <string name="status_processing">Processing…</string>
+    <string name="status_speaking">Speaking… (tap to stop)</string>
+    <string name="status_models_missing">Models not loaded</string>
+
+    <!-- Models warning -->
+    <string name="models_missing_title">⚠ AI Models Not Found</string>
+    <string name="models_missing_body">Run scripts/download_models.sh to download the Whisper STT and Kokoro TTS models, then reinstall the app. See MODEL_SETUP.md for details.</string>
+</resources>
