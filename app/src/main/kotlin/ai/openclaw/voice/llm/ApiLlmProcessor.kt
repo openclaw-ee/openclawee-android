@@ -12,12 +12,14 @@ import java.util.concurrent.TimeUnit
 
 /**
  * LLM processor that POSTs to a local or remote inference endpoint (default: Ollama).
+ * Prepends [ConversationHistory] to each prompt and records each successful exchange.
  * Falls back to [EchoLlmProcessor] on any network or parse failure.
  */
 class ApiLlmProcessor(
     private val endpoint: String = "http://localhost:11434/api/generate",
     private val model: String = "phi3",
     private val fallback: LlmProcessor = EchoLlmProcessor(),
+    private val history: ConversationHistory = ConversationHistory(),
     private val client: OkHttpClient = OkHttpClient.Builder()
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
@@ -30,9 +32,12 @@ class ApiLlmProcessor(
 
     override suspend fun process(input: String): String = withContext(Dispatchers.IO) {
         try {
+            val historyContext = history.toPrompt()
+            val prompt = if (historyContext.isNotEmpty()) "$historyContext\n$input" else input
+
             val body = JSONObject().apply {
                 put("model", model)
-                put("prompt", input)
+                put("prompt", prompt)
                 put("stream", false)
             }.toString().toRequestBody(JSON_MEDIA_TYPE)
 
@@ -47,7 +52,10 @@ class ApiLlmProcessor(
                 }
                 val responseText = response.body?.string()
                     ?: throw Exception("Empty response body")
-                JSONObject(responseText).getString("response")
+                val result = JSONObject(responseText).getString("response")
+                history.add("user", input)
+                history.add("assistant", result)
+                result
             }
         } catch (e: Exception) {
             Log.e(TAG, "API call failed, falling back to echo", e)
