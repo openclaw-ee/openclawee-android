@@ -1,0 +1,36 @@
+name: Feature
+description: A new capability or user-facing improvement
+title: "feat: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the feature clearly enough that anyone can understand what needs to be built and how to verify it's done.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should the user be able to do that they can't do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Specific, testable conditions that must be true for this to be considered done.
+      placeholder: |
+        - [ ] User can tap the mic button to start recording
+        - [ ] Recording stops automatically after 1 second of silence
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / context
+      description: Design decisions, constraints, reference material, or anything else relevant.
+    validations:
+      required: false

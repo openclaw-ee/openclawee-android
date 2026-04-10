@@ -1,0 +1,43 @@
+name: Research / Spike
+description: Time-boxed investigation to answer a specific question or evaluate an approach
+title: "spike: "
+labels: ["spike"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Spikes are time-boxed. The output is a decision or recommendation, not production code.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question to answer
+      description: The specific question this spike must answer. Should be narrow enough to answer in the time box.
+      placeholder: "Which on-device LLM (Phi-3 mini vs Gemma 2B) gives better response quality on a Pixel 9 within a 2s latency budget?"
+    validations:
+      required: true
+
+  - type: input
+    id: timebox
+    attributes:
+      label: Time box
+      placeholder: "4 hours"
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected output
+      description: What artifact or decision should come out of this spike?
+      placeholder: "A written recommendation with benchmark results, and a decision on which model to use in Phase 3."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / background
+      description: Any relevant background, constraints, or prior research.
+    validations:
+      required: false

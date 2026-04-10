@@ -1,0 +1,53 @@
+name: Bug
+description: Something is broken or behaving incorrectly
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide enough detail to reproduce and understand the issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear description of the incorrect behaviour.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What was expected
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Tap the mic button
+        3. Speak for 3 seconds
+        4. Observe...
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device / OS / app version
+      placeholder: "Pixel 9, Android 15, Chloe v0.2.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste any relevant logcat output or attach screenshots.
+    validations:
+      required: false
