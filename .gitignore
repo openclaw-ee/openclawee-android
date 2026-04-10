@@ -1,0 +1,23 @@
+# Build outputs
+/app/build/
+/build/
+*.apk
+*.aab
+
+# Gradle cache
+.gradle/
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Model files (too large for git — use scripts/download_models.sh)
+app/src/main/assets/models/*.tflite
+app/src/main/assets/models/*.onnx
+app/src/main/assets/models/*.bin
+
+# Downloaded packages (from setup-aapt2-arm64.sh)
+*.deb
