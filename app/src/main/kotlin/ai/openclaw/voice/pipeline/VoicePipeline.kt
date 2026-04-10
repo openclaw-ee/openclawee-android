@@ -1,23 +1,30 @@
 package ai.openclaw.voice.pipeline
 
 import ai.openclaw.voice.audio.AudioRecorder
+import ai.openclaw.voice.llm.LlmProcessor
+import ai.openclaw.voice.llm.RoutingLlmProcessor
 import ai.openclaw.voice.stt.WhisperTranscriber
 import ai.openclaw.voice.tts.KokoroTTS
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
  * Orchestrates the full voice pipeline:
- *   Microphone → AudioRecorder → WhisperTranscriber → LLM → KokoroTTS → Speaker
+ *   Microphone → AudioRecorder → WhisperTranscriber → LlmProcessor → KokoroTTS → Speaker
  *
- * Phase 1: LLM is stubbed — echoes transcription back with "You said: ..." prefix.
+ * Recording ends either via 1-second silence (auto) or a manual [stopRecordingAndProcess] call.
  */
 class VoicePipeline(
     private val context: Context,
     private val audioRecorder: AudioRecorder,
     private val whisper: WhisperTranscriber,
-    private val kokoro: KokoroTTS
+    private val kokoro: KokoroTTS,
+    private val llmProcessor: LlmProcessor = RoutingLlmProcessor(),
+    private val pipelineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
     companion object {
@@ -37,10 +44,17 @@ class VoicePipeline(
         get() = File(context.cacheDir, "recording.wav")
 
     /**
-     * Start microphone recording. Call [stopRecording] to end capture and
-     * trigger the STT → LLM → TTS pipeline.
+     * Start microphone recording. Recording stops automatically after 1 second of silence,
+     * then the STT → LLM → TTS pipeline runs. Call [stopRecordingAndProcess] to stop manually.
      */
     fun startRecording() {
+        audioRecorder.onSilenceDetected = {
+            pipelineScope.launch {
+                kotlinx.coroutines.delay(100)
+                runPipeline()
+            }
+        }
+
         Thread {
             try {
                 audioRecorder.startRecording(wavFile) { amplitude ->
@@ -54,7 +68,7 @@ class VoicePipeline(
     }
 
     /**
-     * Stop recording and run the full pipeline synchronously on the calling coroutine.
+     * Stop recording manually and run the full pipeline on the calling coroutine.
      */
     suspend fun stopRecordingAndProcess() {
         audioRecorder.stop()
@@ -73,11 +87,12 @@ class VoicePipeline(
             Log.d(TAG, "Transcription: $transcription")
             listener?.onTranscription(transcription)
 
-            // --- LLM (stub) ---
-            // TODO: Replace this echo stub with a real LLM call (local or API).
-            // The interface contract is: suspend fun generateResponse(prompt: String): String
-            // For Phase 2, inject a LlmProcessor here and swap out the echo logic.
-            val response = generateResponse(transcription)
+            // --- LLM ---
+            val response = if (transcription.isBlank()) {
+                "I didn't catch that. Could you say it again?"
+            } else {
+                llmProcessor.process(transcription)
+            }
             Log.d(TAG, "Response: $response")
             listener?.onResponse(response)
 
@@ -90,18 +105,6 @@ class VoicePipeline(
             Log.e(TAG, "Pipeline error", e)
             listener?.onError("Pipeline error: ${e.message}")
         }
-    }
-
-    /**
-     * LLM stub for Phase 1 — echoes transcription back.
-     *
-     * TODO (Phase 2): Replace with real LLM integration:
-     *   - Option A: Claude API via HTTP (requires INTERNET permission, already granted)
-     *   - Option B: On-device LLM (llama.cpp JNI or MediaPipe LLM Inference API)
-     */
-    private fun generateResponse(transcription: String): String {
-        if (transcription.isBlank()) return "I didn't catch that. Could you say it again?"
-        return "You said: $transcription"
     }
 
     fun stopPlayback() {

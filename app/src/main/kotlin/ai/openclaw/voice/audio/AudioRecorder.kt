@@ -14,7 +14,9 @@ import java.nio.ByteOrder
  * Records audio from the microphone at 16kHz mono 16-bit PCM and saves to WAV.
  * This format is required by the Whisper STT model.
  */
-open class AudioRecorder {
+open class AudioRecorder(
+    private val silenceDetector: SilenceDetector = SilenceDetector()
+) {
 
     companion object {
         private const val TAG = "AudioRecorder"
@@ -23,6 +25,12 @@ open class AudioRecorder {
         const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         const val BYTES_PER_SAMPLE = 2
     }
+
+    /**
+     * Called when [silenceDetector] fires. Set before calling [startRecording].
+     * VoicePipeline uses this to auto-trigger the STT→LLM→TTS pipeline.
+     */
+    var onSilenceDetected: (() -> Unit)? = null
 
     private var audioRecord: AudioRecord? = null
     private var isRecording = false
@@ -53,6 +61,7 @@ open class AudioRecorder {
 
         audioRecord = record
         isRecording = true
+        silenceDetector.reset()
 
         // Write WAV with a placeholder header; we'll fix up the sizes after recording
         val fos = FileOutputStream(outputFile)
@@ -73,9 +82,16 @@ open class AudioRecorder {
                     fos.write(bytes)
                     totalBytesWritten += bytes.size
 
-                    // Compute RMS amplitude for UI feedback
+                    // Compute RMS amplitude for UI feedback and silence detection
                     val rms = computeRms(buffer, read)
                     onAmplitude(rms)
+
+                    // Feed raw-scale amplitude to silence detector (0–32767 range)
+                    val rawRms = rms * Short.MAX_VALUE.toFloat()
+                    if (silenceDetector.feed(rawRms)) {
+                        isRecording = false
+                        onSilenceDetected?.invoke()
+                    }
                 }
             }
         } finally {
