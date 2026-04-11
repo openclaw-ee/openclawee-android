@@ -10,7 +10,7 @@
     <!-- App title -->
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/titleText"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/app_name"
         android:textColor="@color/text_primary"
@@ -19,8 +19,21 @@
         android:fontFamily="sans-serif-medium"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/settingsButton"
         android:layout_marginTop="32dp" />
+
+    <!-- Settings gear button (top-right) -->
+    <ImageButton
+        android:id="@+id/settingsButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@android:drawable/ic_menu_manage"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:tint="@color/text_secondary"
+        android:contentDescription="Settings"
+        app:layout_constraintTop_toTopOf="@id/titleText"
+        app:layout_constraintBottom_toBottomOf="@id/titleText"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Models missing warning card -->
     <com.google.android.material.card.MaterialCardView
@@ -33,7 +46,7 @@
         app:layout_constraintTop_toBottomOf="@id/titleText"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp">
+        android:layout_marginTop="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -61,67 +74,49 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Transcription card -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/transcriptionCard"
+    <!-- Conversation history header row (label + clear button) -->
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/historyLabel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/surface"
-        app:cardCornerRadius="12dp"
+        android:text="Conversation"
+        android:textSize="11sp"
+        android:textColor="@color/text_secondary"
+        android:textAllCaps="true"
+        android:letterSpacing="0.1"
+        app:layout_constraintTop_toBottomOf="@id/modelsWarningCard"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/clearHistoryButton"
+        android:layout_marginTop="16dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/clearHistoryButton"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Clear"
+        android:textSize="11sp"
+        android:textColor="@color/text_secondary"
+        android:minHeight="0dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        app:layout_constraintTop_toTopOf="@id/historyLabel"
+        app:layout_constraintBottom_toBottomOf="@id/historyLabel"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Conversation history RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/conversationRecyclerView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:paddingTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/historyLabel"
         app:layout_constraintBottom_toTopOf="@id/waveformView"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="16dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="You"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/transcriptionText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:layout_marginTop="4dp"
-                android:lineSpacingMultiplier="1.4"
-                android:visibility="gone" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Assistant"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                android:textAllCaps="true"
-                android:letterSpacing="0.1"
-                android:layout_marginTop="12dp" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/responseText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="@color/accent"
-                android:textSize="16sp"
-                android:layout_marginTop="4dp"
-                android:lineSpacingMultiplier="1.4"
-                android:visibility="gone" />
-
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp" />
 
     <!-- Waveform visualizer -->
     <ai.openclaw.voice.ui.WaveformView

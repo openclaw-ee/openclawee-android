@@ -52,6 +52,9 @@ open class KokoroTTS(private val context: Context) {
         )
     }
 
+    /** Currently selected voice; updated at runtime via settings. */
+    var currentVoice: String = DEFAULT_VOICE
+
     private var ortEnv: OrtEnvironment? = null
     private var ortSession: OrtSession? = null
     private var voiceEmbeddings: FloatArray? = null

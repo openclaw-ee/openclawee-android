@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * Falls back to [EchoLlmProcessor] on any network or parse failure.
  */
 class ApiLlmProcessor(
-    private val endpoint: String = "http://localhost:11434/api/generate",
+    endpoint: String = "http://localhost:11434/api/generate",
     private val model: String = "phi3",
     private val fallback: LlmProcessor = EchoLlmProcessor(),
     private val history: ConversationHistory = ConversationHistory(),
@@ -24,6 +24,9 @@ class ApiLlmProcessor(
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
 ) : LlmProcessor {
+
+    /** Mutable so that settings changes can be applied at runtime without recreation. */
+    var endpoint: String = endpoint
 
     companion object {
         private const val TAG = "ApiLlmProcessor"
