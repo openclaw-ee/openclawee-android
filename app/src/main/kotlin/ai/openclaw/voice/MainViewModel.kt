@@ -2,9 +2,12 @@ package ai.openclaw.voice
 
 import ai.openclaw.voice.audio.AudioRecorder
 import ai.openclaw.voice.pipeline.VoicePipeline
+import ai.openclaw.voice.settings.Settings
 import ai.openclaw.voice.stt.WhisperTranscriber
 import ai.openclaw.voice.tts.KokoroTTS
+import ai.openclaw.voice.ui.SettingsBottomSheet
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -39,6 +42,12 @@ class MainViewModel @JvmOverloads constructor(
         SPEAKING         // TTS playback
     }
 
+    data class ConversationMessage(
+        val role: String,       // "user" or "assistant"
+        val text: String,
+        val timestampMs: Long
+    )
+
     private val _appState = MutableStateFlow(AppState.IDLE)
     val appState: StateFlow<AppState> = _appState.asStateFlow()
 
@@ -54,6 +63,9 @@ class MainViewModel @JvmOverloads constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _conversationHistory = MutableStateFlow<List<ConversationMessage>>(emptyList())
+    val conversationHistory: StateFlow<List<ConversationMessage>> = _conversationHistory.asStateFlow()
+
     // --------------- Components ---------------
 
     private val pipeline: VoicePipeline = pipelineOverride
@@ -64,13 +76,18 @@ class MainViewModel @JvmOverloads constructor(
             override fun onAmplitude(amplitude: Float) {
                 _amplitude.value = amplitude
             }
+
             override fun onTranscription(text: String) {
                 _transcription.value = text
                 _appState.value = AppState.SPEAKING
+                appendHistory("user", text)
             }
+
             override fun onResponse(text: String) {
                 _response.value = text
+                appendHistory("assistant", text)
             }
+
             override fun onError(message: String) {
                 _errorMessage.value = message
                 _appState.value = AppState.IDLE
@@ -102,7 +119,36 @@ class MainViewModel @JvmOverloads constructor(
         pipeline.clearConversation()
     }
 
+    /** Clears the visible conversation history and the underlying LLM context. */
+    fun clearHistory() {
+        _conversationHistory.value = emptyList()
+        pipeline.clearConversation()
+    }
+
+    /**
+     * Reads SharedPreferences and applies the stored settings to the pipeline components.
+     * Call this on launch and whenever the settings bottom sheet is dismissed.
+     */
+    fun applySettings() {
+        val prefs = getApplication<Application>().getSharedPreferences(
+            SettingsBottomSheet.PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
+        val settings = Settings.load(prefs)
+        pipeline.applySettings(settings.apiEndpoint, settings.silenceThresholdMs, settings.ttsVoice)
+    }
+
     // --------------- Private ---------------
+
+    private fun appendHistory(role: String, text: String) {
+        if (text.isBlank()) return
+        val updated = (_conversationHistory.value + ConversationMessage(
+            role = role,
+            text = text,
+            timestampMs = System.currentTimeMillis()
+        )).takeLast(10)
+        _conversationHistory.value = updated
+    }
 
     private fun checkModelsAndLoad() {
         viewModelScope.launch(ioDispatcher) {
@@ -123,6 +169,7 @@ class MainViewModel @JvmOverloads constructor(
                 Log.d(TAG, "All models loaded")
                 withContext(Dispatchers.Main) {
                     _appState.value = AppState.IDLE
+                    applySettings()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Model loading failed", e)

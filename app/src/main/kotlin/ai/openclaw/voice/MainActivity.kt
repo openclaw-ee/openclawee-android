@@ -10,13 +10,17 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import ai.openclaw.voice.databinding.ActivityMainBinding
+import ai.openclaw.voice.ui.ConversationAdapter
+import ai.openclaw.voice.ui.SettingsBottomSheet
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val viewModel: MainViewModel by viewModels()
+    private val conversationAdapter = ConversationAdapter()
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -24,7 +28,11 @@ class MainActivity : AppCompatActivity() {
         if (granted) {
             viewModel.onMicButtonClicked()
         } else {
-            Toast.makeText(this, "Microphone permission is required", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                "Microphone permission denied. Please grant it in Settings.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -45,26 +53,27 @@ class MainActivity : AppCompatActivity() {
                 requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
             }
         }
+
+        binding.settingsButton.setOnClickListener {
+            SettingsBottomSheet().show(supportFragmentManager, SettingsBottomSheet.TAG)
+        }
+
+        binding.clearHistoryButton.setOnClickListener {
+            viewModel.clearHistory()
+        }
+
+        // Conversation RecyclerView
+        val layoutManager = LinearLayoutManager(this).apply {
+            stackFromEnd = true // newest messages at bottom
+        }
+        binding.conversationRecyclerView.layoutManager = layoutManager
+        binding.conversationRecyclerView.adapter = conversationAdapter
     }
 
     private fun observeViewModel() {
         lifecycleScope.launch {
             viewModel.appState.collect { state ->
                 updateUI(state)
-            }
-        }
-
-        lifecycleScope.launch {
-            viewModel.transcription.collect { text ->
-                binding.transcriptionText.text = text
-                binding.transcriptionText.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
-            }
-        }
-
-        lifecycleScope.launch {
-            viewModel.response.collect { text ->
-                binding.responseText.text = text
-                binding.responseText.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
             }
         }
 
@@ -82,10 +91,24 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+
+        lifecycleScope.launch {
+            viewModel.conversationHistory.collect { messages ->
+                conversationAdapter.submitList(messages)
+                if (messages.isNotEmpty()) {
+                    binding.conversationRecyclerView.scrollToPosition(messages.size - 1)
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-apply settings in case they changed while the settings sheet was showing
+        viewModel.applySettings()
     }
 
     private fun updateUI(state: MainViewModel.AppState) {
-        // Reset animated state
         binding.micButton.clearAnimation()
         binding.waveformView.visibility = View.GONE
         binding.waveformView.setRecording(false)

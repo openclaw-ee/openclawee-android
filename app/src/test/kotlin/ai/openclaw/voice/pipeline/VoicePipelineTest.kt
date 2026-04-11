@@ -55,22 +55,24 @@ class VoicePipelineTest {
     }
 
     @Test
-    fun `givenBlankTranscription_whenPipelineProcesses_thenRespondsWithDidNotCatchThat`() = runTest {
+    fun `givenBlankTranscription_whenPipelineProcesses_thenOnErrorCalledWithDidNotCatchThat`() = runTest {
         every { whisper.transcribe(any()) } returns ""
 
         pipeline.stopRecordingAndProcess()
 
         verify { listener.onTranscription("") }
-        verify { listener.onResponse("I didn't catch that. Could you say it again?") }
+        verify { listener.onError("I didn't catch that. Please try again.") }
+        verify(exactly = 0) { listener.onResponse(any()) }
     }
 
     @Test
-    fun `givenWhitespaceOnlyTranscription_whenPipelineProcesses_thenRespondsWithDidNotCatchThat`() = runTest {
+    fun `givenWhitespaceOnlyTranscription_whenPipelineProcesses_thenOnErrorCalledWithDidNotCatchThat`() = runTest {
         every { whisper.transcribe(any()) } returns "   "
 
         pipeline.stopRecordingAndProcess()
 
-        verify { listener.onResponse("I didn't catch that. Could you say it again?") }
+        verify { listener.onError("I didn't catch that. Please try again.") }
+        verify(exactly = 0) { listener.onResponse(any()) }
     }
 
     @Test
@@ -113,27 +115,27 @@ class VoicePipelineTest {
         assertTrue("stop() must be called before transcribe()", callOrder.indexOf("stop") < callOrder.indexOf("transcribe"))
     }
 
-    // --- Error propagation ---
+    // --- Error propagation with human-readable messages ---
 
     @Test
-    fun `givenTranscriberThrows_whenPipelineProcesses_thenOnErrorIsCalled`() = runTest {
+    fun `givenTranscriberThrows_whenPipelineProcesses_thenTranscriptionFailedErrorReturned`() = runTest {
         every { whisper.transcribe(any()) } throws RuntimeException("STT failed")
 
         pipeline.stopRecordingAndProcess()
 
-        verify { listener.onError(match { it.contains("STT failed") }) }
+        verify { listener.onError("Transcription failed. Please try again.") }
         verify(exactly = 0) { listener.onResponse(any()) }
         verify(exactly = 0) { kokoro.speak(any(), any()) }
     }
 
     @Test
-    fun `givenTtsThrows_whenPipelineProcesses_thenOnErrorIsCalled`() = runTest {
+    fun `givenTtsThrows_whenPipelineProcesses_thenVoiceSynthesisFailedErrorReturned`() = runTest {
         every { whisper.transcribe(any()) } returns "hello"
         every { kokoro.speak(any(), any()) } throws RuntimeException("TTS failed")
 
         pipeline.stopRecordingAndProcess()
 
-        verify { listener.onError(match { it.contains("TTS failed") }) }
+        verify { listener.onError("Voice synthesis failed. Please try again.") }
     }
 
     // --- Recording control ---
@@ -141,7 +143,6 @@ class VoicePipelineTest {
     @Test
     fun `givenPipelineStarted_whenStartRecordingCalled_thenAudioRecorderIsStarted`() {
         pipeline.startRecording()
-        // startRecording delegates to a Thread; give it a moment
         Thread.sleep(50)
         verify { audioRecorder.startRecording(any(), any()) }
     }
@@ -186,5 +187,27 @@ class VoicePipelineTest {
 
         // Should complete without NullPointerException
         pipeline.stopRecordingAndProcess()
+    }
+
+    // --- applySettings ---
+
+    @Test
+    fun `givenNewSettings_whenApplySettingsCalled_thenEndpointIsUpdated`() {
+        val newEndpoint = "http://example.com/api"
+        pipeline.applySettings(newEndpoint, 1500L, "af_sky")
+        assertEquals(newEndpoint, pipeline.defaultApiProcessor.endpoint)
+    }
+
+    @Test
+    fun `givenNewSettings_whenApplySettingsCalled_thenKokoroVoiceIsUpdated`() {
+        every { kokoro.currentVoice = any() } just Runs
+        pipeline.applySettings("http://localhost/api", 1000L, "am_michael")
+        verify { kokoro.currentVoice = "am_michael" }
+    }
+
+    @Test
+    fun `givenNewSettings_whenApplySettingsCalled_thenSilenceThresholdIsUpdated`() {
+        pipeline.applySettings("http://localhost/api", 2000L, "af_heart")
+        verify { audioRecorder.setSilenceThreshold(2000L) }
     }
 }

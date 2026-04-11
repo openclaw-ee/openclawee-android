@@ -32,6 +32,11 @@ open class AudioRecorder(
      */
     var onSilenceDetected: (() -> Unit)? = null
 
+    /** Update the silence threshold at runtime (applied immediately on next recording). */
+    fun setSilenceThreshold(ms: Long) {
+        silenceDetector.silenceThresholdMs = ms
+    }
+
     private var audioRecord: AudioRecord? = null
     private var isRecording = false
     private val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)

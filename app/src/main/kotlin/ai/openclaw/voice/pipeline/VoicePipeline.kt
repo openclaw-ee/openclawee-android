@@ -18,8 +18,10 @@ import java.io.File
  * Orchestrates the full voice pipeline:
  *   Microphone → AudioRecorder → WhisperTranscriber → LlmProcessor → KokoroTTS → Speaker
  *
- * Recording ends either via 1-second silence (auto) or a manual [stopRecordingAndProcess] call.
+ * Recording ends either via silence (auto) or a manual [stopRecordingAndProcess] call.
  * Conversation context is maintained in [conversationHistory] and can be reset via [clearConversation].
+ *
+ * Settings (API endpoint, silence threshold, TTS voice) can be updated at runtime via [applySettings].
  */
 class VoicePipeline(
     private val context: Context,
@@ -35,8 +37,12 @@ class VoicePipeline(
         private const val TAG = "VoicePipeline"
     }
 
-    private val llmProcessor: LlmProcessor = llmProcessor
-        ?: RoutingLlmProcessor(apiProcessor = ApiLlmProcessor(history = conversationHistory))
+    // Kept as a separate reference so endpoint can be updated without recreating the pipeline.
+    internal val defaultApiProcessor: ApiLlmProcessor =
+        ApiLlmProcessor(history = conversationHistory)
+
+    private val resolvedLlmProcessor: LlmProcessor = llmProcessor
+        ?: RoutingLlmProcessor(apiProcessor = defaultApiProcessor)
 
     interface Listener {
         fun onAmplitude(amplitude: Float)
@@ -51,8 +57,9 @@ class VoicePipeline(
         get() = File(context.cacheDir, "recording.wav")
 
     /**
-     * Start microphone recording. Recording stops automatically after 1 second of silence,
-     * then the STT → LLM → TTS pipeline runs. Call [stopRecordingAndProcess] to stop manually.
+     * Start microphone recording. Recording stops automatically after the configured silence
+     * threshold, then the STT → LLM → TTS pipeline runs. Call [stopRecordingAndProcess] to
+     * stop manually.
      */
     fun startRecording() {
         audioRecorder.onSilenceDetected = {
@@ -79,10 +86,7 @@ class VoicePipeline(
      */
     suspend fun stopRecordingAndProcess() {
         audioRecorder.stop()
-
-        // Brief pause to let the recording thread flush and close the file
         kotlinx.coroutines.delay(100)
-
         runPipeline()
     }
 
@@ -91,27 +95,56 @@ class VoicePipeline(
         conversationHistory.clear()
     }
 
+    /**
+     * Apply runtime settings. Safe to call at any time (even during recording).
+     */
+    fun applySettings(endpoint: String, silenceThresholdMs: Long, voice: String) {
+        defaultApiProcessor.endpoint = endpoint
+        audioRecorder.setSilenceThreshold(silenceThresholdMs)
+        kokoro.currentVoice = voice
+    }
+
     private suspend fun runPipeline() {
         try {
             // --- STT ---
             Log.d(TAG, "Starting transcription")
-            val transcription = whisper.transcribe(wavFile)
+            val transcription = try {
+                whisper.transcribe(wavFile)
+            } catch (e: Exception) {
+                Log.e(TAG, "STT error", e)
+                listener?.onError("Transcription failed. Please try again.")
+                return
+            }
+
             Log.d(TAG, "Transcription: $transcription")
             listener?.onTranscription(transcription)
 
-            // --- LLM ---
-            val response = if (transcription.isBlank()) {
-                "I didn't catch that. Could you say it again?"
-            } else {
-                llmProcessor.process(transcription)
+            if (transcription.isBlank()) {
+                listener?.onError("I didn't catch that. Please try again.")
+                return
             }
+
+            // --- LLM ---
+            val response = try {
+                resolvedLlmProcessor.process(transcription)
+            } catch (e: Exception) {
+                Log.e(TAG, "LLM error", e)
+                listener?.onError("Could not get a response. Please check your API settings.")
+                return
+            }
+
             Log.d(TAG, "Response: $response")
             listener?.onResponse(response)
 
             // --- TTS ---
-            Log.d(TAG, "Starting TTS")
-            kokoro.speak(response)
-            Log.d(TAG, "TTS complete")
+            try {
+                Log.d(TAG, "Starting TTS")
+                kokoro.speak(response, kokoro.currentVoice)
+                Log.d(TAG, "TTS complete")
+            } catch (e: Exception) {
+                Log.e(TAG, "TTS error", e)
+                listener?.onError("Voice synthesis failed. Please try again.")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Pipeline error", e)

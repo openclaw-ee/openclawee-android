@@ -12,7 +12,7 @@ import android.os.SystemClock
  * keep the [feed] / [reset] interface stable.
  */
 class SilenceDetector(
-    val silenceThresholdMs: Long = 1000L,
+    var silenceThresholdMs: Long = 1000L,
     val rmsThreshold: Float = 150f,
     private val timeProvider: () -> Long = { SystemClock.elapsedRealtime() }
 ) {
