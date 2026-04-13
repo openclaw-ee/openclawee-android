@@ -8,12 +8,14 @@ import java.io.File
  *
  * Required files:
  *   - whisper-base-en.tflite  (Whisper STT model)
+ *   - filters_vocab_en.bin    (Whisper BPE vocabulary for token decoding)
  *   - kokoro-v1.0.onnx        (Kokoro TTS model)
  *   - voices-v1.0.bin         (Kokoro voice embeddings)
  */
 object ModelManager {
 
     private const val WHISPER_FILE = "whisper-base-en.tflite"
+    private const val WHISPER_VOCAB_FILE = "filters_vocab_en.bin"
     private const val KOKORO_MODEL_FILE = "kokoro-v1.0.onnx"
     private const val KOKORO_VOICES_FILE = "voices-v1.0.bin"
 
@@ -29,12 +31,14 @@ object ModelManager {
         val missing = mutableListOf<String>()
 
         if (!File(dir, WHISPER_FILE).exists()) missing.add(WHISPER_FILE)
+        if (!File(dir, WHISPER_VOCAB_FILE).exists()) missing.add(WHISPER_VOCAB_FILE)
         if (!File(dir, KOKORO_MODEL_FILE).exists()) missing.add(KOKORO_MODEL_FILE)
         if (!File(dir, KOKORO_VOICES_FILE).exists()) missing.add(KOKORO_VOICES_FILE)
 
         return if (missing.isEmpty()) {
             ModelStatus.Available(
                 whisperPath = File(dir, WHISPER_FILE),
+                whisperVocabPath = File(dir, WHISPER_VOCAB_FILE),
                 kokoroModelPath = File(dir, KOKORO_MODEL_FILE),
                 kokoroVoicesPath = File(dir, KOKORO_VOICES_FILE)
             )
@@ -47,6 +51,7 @@ object ModelManager {
 sealed class ModelStatus {
     data class Available(
         val whisperPath: File,
+        val whisperVocabPath: File,
         val kokoroModelPath: File,
         val kokoroVoicesPath: File
     ) : ModelStatus()

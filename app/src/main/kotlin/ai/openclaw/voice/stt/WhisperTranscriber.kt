@@ -17,6 +17,7 @@ import kotlin.math.PI
  * On-device speech-to-text using Whisper base.en TFLite model.
  *
  * Model file expected at: filesDir/models/whisper-base-en.tflite
+ * Vocab file expected at: filesDir/models/filters_vocab_en.bin
  * (download via scripts/download_models.sh)
  *
  * The model expects a log-mel spectrogram input of shape [1, 80, 3000]
@@ -27,6 +28,9 @@ open class WhisperTranscriber(private val context: Context) {
     companion object {
         private const val TAG = "WhisperTranscriber"
         const val MODEL_ASSET_PATH = "models/whisper-base-en.tflite"
+        const val VOCAB_FILE = "filters_vocab_en.bin"
+
+        private const val VOCAB_MAGIC = 0x57535052.toInt()
 
         // Mel spectrogram parameters matching Whisper's preprocessing
         private const val SAMPLE_RATE = 16000
@@ -43,16 +47,53 @@ open class WhisperTranscriber(private val context: Context) {
         private const val NO_TIMESTAMPS_TOKEN = 50363
         private const val TRANSCRIBE_TOKEN = 50359
         private const val ENGLISH_TOKEN = 50259
+
+        /**
+         * GPT-2 byte-level BPE: maps Unicode char → original byte value.
+         *
+         * GPT-2's BPE maps each byte (0–255) to a Unicode character so that
+         * tokens can be stored as strings without encoding issues. This is the
+         * inverse mapping needed to decode token strings back to raw bytes.
+         */
+        private val UNICODE_TO_BYTE: Map<Char, Int> by lazy {
+            val bs = mutableListOf<Int>()
+            val cs = mutableListOf<Int>()
+            // Printable ASCII: ! through ~
+            for (b in 33..126) { bs.add(b); cs.add(b) }
+            // ¡ through ¬
+            for (b in 161..172) { bs.add(b); cs.add(b) }
+            // ® through ÿ
+            for (b in 174..255) { bs.add(b); cs.add(b) }
+            // Remaining 68 bytes (0–32, 127, 128–160, 173) map to chars 256–323
+            var n = 0
+            for (b in 0..255) {
+                if (b !in bs) {
+                    bs.add(b)
+                    cs.add(256 + n)
+                    n++
+                }
+            }
+            val result = mutableMapOf<Char, Int>()
+            for (i in bs.indices) {
+                result[cs[i].toChar()] = bs[i]
+            }
+            result
+        }
     }
 
     private var interpreter: Interpreter? = null
     private var melFilterbank: Array<FloatArray>? = null
+    private var vocabulary: Array<String>? = null
 
     val isModelAvailable: Boolean
-        get() = File(context.filesDir, "models/whisper-base-en.tflite").exists()
+        get() {
+            val dir = File(context.filesDir, "models")
+            return File(dir, "whisper-base-en.tflite").exists() &&
+                    File(dir, VOCAB_FILE).exists()
+        }
 
     /**
-     * Load the TFLite model. Must be called before [transcribe].
+     * Load the TFLite model and vocabulary. Must be called before [transcribe].
      * Safe to call multiple times — only loads once.
      */
     fun loadModel() {
@@ -65,7 +106,8 @@ open class WhisperTranscriber(private val context: Context) {
             }
             interpreter = Interpreter(model, options)
             melFilterbank = buildMelFilterbank()
-            Log.d(TAG, "Whisper model loaded successfully")
+            vocabulary = loadVocabulary()
+            Log.d(TAG, "Whisper model and vocabulary loaded successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load Whisper model", e)
             throw e
@@ -92,6 +134,74 @@ open class WhisperTranscriber(private val context: Context) {
     fun release() {
         interpreter?.close()
         interpreter = null
+    }
+
+    // ---------- Vocabulary loading & token decoding ----------
+
+    /**
+     * Reads the filters_vocab_en.bin binary file (whisper.cpp format) and
+     * returns an array of token strings indexed by token ID.
+     *
+     * Binary format:
+     *   magic    : int32  (0x57535052 = "WSPR")
+     *   n_mels   : int32
+     *   n_fft    : int32  (n_fft/2+1 bins)
+     *   mel_data : n_mels × n_fft × float32  (skipped — we use computed filterbank)
+     *   n_vocab  : int32
+     *   per token: word_len (int32) + word_len UTF-8 bytes
+     */
+    private fun loadVocabulary(): Array<String> {
+        val vocabFile = File(context.filesDir, "models/$VOCAB_FILE")
+        val buf = ByteBuffer.wrap(vocabFile.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
+
+        val magic = buf.int
+        require(magic == VOCAB_MAGIC) {
+            "Invalid vocab file magic: 0x${Integer.toHexString(magic)} (expected 0x${Integer.toHexString(VOCAB_MAGIC)})"
+        }
+
+        val nMels = buf.int
+        val nFftBins = buf.int
+        // Skip mel filter data — we use our own computed filterbank
+        buf.position(buf.position() + nMels * nFftBins * 4)
+
+        val nVocab = buf.int
+        return Array(nVocab) {
+            val len = buf.int
+            val bytes = ByteArray(len)
+            buf.get(bytes)
+            String(bytes, Charsets.UTF_8)
+        }
+    }
+
+    /**
+     * Decode token IDs to text using the loaded vocabulary.
+     *
+     * Each token string uses GPT-2 byte-level BPE encoding where each
+     * character maps to exactly one byte via [UNICODE_TO_BYTE]. We
+     * accumulate the decoded bytes and interpret them as UTF-8.
+     */
+    private fun decodeTokens(tokens: IntArray): String {
+        val vocab = vocabulary ?: return "[vocabulary not loaded]"
+        val byteBuffer = mutableListOf<Byte>()
+
+        for (tokenId in tokens) {
+            if (tokenId == EOT_TOKEN) break
+            // Skip tokens outside the text range (special Whisper tokens > EOT)
+            if (tokenId < 0 || tokenId > EOT_TOKEN - 1) continue
+            if (tokenId >= vocab.size) continue
+
+            val tokenStr = vocab[tokenId]
+            bpeTokenToBytes(tokenStr).forEach { byteBuffer.add(it) }
+        }
+
+        return String(byteBuffer.toByteArray(), Charsets.UTF_8)
+    }
+
+    /** Decode a GPT-2 BPE token string to raw bytes. */
+    private fun bpeTokenToBytes(token: String): ByteArray {
+        return ByteArray(token.length) { i ->
+            (UNICODE_TO_BYTE[token[i]] ?: token[i].code).toByte()
+        }
     }
 
     // ---------- Audio preprocessing ----------
@@ -270,22 +380,6 @@ open class WhisperTranscriber(private val context: Context) {
         interpreter.run(flatInput, outputTokens)
 
         return decodeTokens(outputTokens[0])
-    }
-
-    /**
-     * Decode token IDs to text using the Whisper vocabulary.
-     * For a full implementation, load vocab.json from assets.
-     * This stub returns a placeholder until vocabulary mapping is implemented.
-     */
-    private fun decodeTokens(tokens: IntArray): String {
-        // TODO: Load Whisper vocab.json from assets and map token IDs to text
-        // For now, filter special tokens and return the raw token IDs as a debug string
-        val meaningful = tokens.filter { it < SOT_TOKEN && it > 0 }
-        if (meaningful.isEmpty()) return ""
-
-        // In a full implementation: return vocab[token].joinToString("")
-        // The whisper-tflite project provides a vocab file alongside the model
-        return "[decoded: ${meaningful.size} tokens — integrate vocab.json for text output]"
     }
 
     private fun loadModelBuffer(): MappedByteBuffer {

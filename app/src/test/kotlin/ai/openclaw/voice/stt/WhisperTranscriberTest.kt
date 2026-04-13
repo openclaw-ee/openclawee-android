@@ -51,7 +51,16 @@ class WhisperTranscriberTest {
     fun `givenContextWithModelAsset_whenCheckingIsModelAvailable_thenReturnsTrue`() {
         val modelsDir = File(tempDir, "models").also { it.mkdirs() }
         File(modelsDir, "whisper-base-en.tflite").createNewFile()
+        File(modelsDir, WhisperTranscriber.VOCAB_FILE).createNewFile()
         assertTrue(transcriber.isModelAvailable)
+    }
+
+    @Test
+    fun `givenModelPresentButVocabMissing_whenCheckingIsModelAvailable_thenReturnsFalse`() {
+        val modelsDir = File(tempDir, "models").also { it.mkdirs() }
+        File(modelsDir, "whisper-base-en.tflite").createNewFile()
+        // VOCAB_FILE not created
+        assertFalse(transcriber.isModelAvailable)
     }
 
     @Test
