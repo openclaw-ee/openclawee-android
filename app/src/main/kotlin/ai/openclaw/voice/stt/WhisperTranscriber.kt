@@ -8,6 +8,8 @@ import com.redravencomputing.whispercore.WhisperOperationError
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -57,6 +59,29 @@ open class WhisperTranscriber(private val context: Context) {
      */
     suspend fun transcribe(wavFile: File): String {
         val w = whisper ?: throw IllegalStateException("Model not loaded — call loadModel() first")
+
+        // Log WAV file details for debugging
+        val fileSize = wavFile.length()
+        val headerBytes = if (fileSize >= 44) {
+            wavFile.inputStream().use { it.readNBytes(44) }
+        } else {
+            ByteArray(0)
+        }
+        Log.d(TAG, "WAV file: ${wavFile.absolutePath}")
+        Log.d(TAG, "WAV size: $fileSize bytes")
+        if (headerBytes.size >= 44) {
+            val bb = ByteBuffer.wrap(headerBytes).order(ByteOrder.LITTLE_ENDIAN)
+            val riff = String(headerBytes, 0, 4)
+            val wave = String(headerBytes, 8, 4)
+            val fmt = bb.getInt(16)
+            val channels = bb.getShort(22).toInt()
+            val sampleRate = bb.getInt(24)
+            val bitsPerSample = bb.getShort(34).toInt()
+            val dataSize = bb.getInt(40)
+            Log.d(TAG, "WAV header: riff='$riff' wave='$wave' fmt=$fmt channels=$channels rate=$sampleRate bits=$bitsPerSample dataSize=$dataSize")
+        } else {
+            Log.w(TAG, "WAV file too small or malformed: only $fileSize bytes")
+        }
 
         val t0 = System.currentTimeMillis()
         return suspendCancellableCoroutine { cont ->
