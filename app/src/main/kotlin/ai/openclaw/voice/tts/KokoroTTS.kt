@@ -78,7 +78,9 @@ open class KokoroTTS(private val context: Context) {
             val modelFile = File(context.filesDir, "models/kokoro-v1.0.onnx")
             val options = OrtSession.SessionOptions().apply {
                 setIntraOpNumThreads(4)
+                setInterOpNumThreads(4)
                 setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                addConfigEntry("session.strict_opset_check", "0")
             }
             ortSession = env.createSession(modelFile.absolutePath, options)
             Log.d(TAG, "Kokoro ONNX session created")

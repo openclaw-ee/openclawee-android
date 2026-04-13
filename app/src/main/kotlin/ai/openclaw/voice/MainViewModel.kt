@@ -155,8 +155,8 @@ class MainViewModel @JvmOverloads constructor(
             val whisperReady = whisper.isModelAvailable
             val kokoroReady = kokoro.isModelAvailable
 
-            if (!whisperReady || !kokoroReady) {
-                Log.w(TAG, "Models missing — whisper=$whisperReady kokoro=$kokoroReady")
+            if (!whisperReady) {
+                Log.w(TAG, "Whisper model missing — required for STT")
                 withContext(Dispatchers.Main) {
                     _appState.value = AppState.MODELS_MISSING
                 }
@@ -165,16 +165,29 @@ class MainViewModel @JvmOverloads constructor(
 
             try {
                 whisper.loadModel()
-                kokoro.loadModel()
-                Log.d(TAG, "All models loaded")
+                Log.d(TAG, "Whisper STT model loaded")
+                
+                // TTS is optional — try to load but don't block on failure
+                if (kokoroReady) {
+                    try {
+                        kokoro.loadModel()
+                        Log.d(TAG, "Kokoro TTS model loaded")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Kokoro TTS failed to load — app will run without speech output", e)
+                        // Don't set error — app continues without TTS
+                    }
+                } else {
+                    Log.w(TAG, "Kokoro TTS model missing — app will run without speech output")
+                }
+                
                 withContext(Dispatchers.Main) {
                     _appState.value = AppState.IDLE
                     applySettings()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Model loading failed", e)
+                Log.e(TAG, "Whisper loading failed", e)
                 withContext(Dispatchers.Main) {
-                    _errorMessage.value = "Failed to load models: ${e.message}"
+                    _errorMessage.value = "Failed to load STT model: ${e.message}"
                     _appState.value = AppState.MODELS_MISSING
                 }
             }

@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "ai.openclaw.voice"
-        minSdk = 26
+        minSdk = 29
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -75,9 +75,8 @@ dependencies {
     // ONNX Runtime for Kokoro TTS
     implementation(libs.onnxruntime.android)
 
-    // TensorFlow Lite for Whisper STT
-    implementation(libs.tensorflow.lite)
-    implementation(libs.tensorflow.lite.support)
+    // WhisperCore_Android for on-device STT (wraps whisper.cpp with prebuilt native libs)
+    implementation("com.github.EberronBruce:WhisperCore_Android:v1.0.2")
 
     // OkHttp for LLM API calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

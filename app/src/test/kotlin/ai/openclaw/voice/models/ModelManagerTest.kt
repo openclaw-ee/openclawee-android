@@ -39,7 +39,7 @@ class ModelManagerTest {
     fun `givenAllModelFilesPresent_whenChecked_thenReturnsAvailable`() {
         val dir = ModelManager.modelsDir(context)
         dir.mkdirs()
-        dir.resolve("whisper-base-en.tflite").createNewFile()
+        dir.resolve("whisper-base-en.bin").createNewFile()
         dir.resolve("kokoro-v1.0.onnx").createNewFile()
         dir.resolve("voices-v1.0.bin").createNewFile()
 
@@ -56,13 +56,13 @@ class ModelManagerTest {
     fun `givenAllModelFilesPresent_whenChecked_thenAvailablePathsPointToCorrectFiles`() {
         val dir = ModelManager.modelsDir(context)
         dir.mkdirs()
-        dir.resolve("whisper-base-en.tflite").createNewFile()
+        dir.resolve("whisper-base-en.bin").createNewFile()
         dir.resolve("kokoro-v1.0.onnx").createNewFile()
         dir.resolve("voices-v1.0.bin").createNewFile()
 
         val available = ModelManager.checkModelsAvailable(context) as ModelStatus.Available
 
-        assertEquals("whisper-base-en.tflite", available.whisperPath.name)
+        assertEquals("whisper-base-en.bin", available.whisperPath.name)
         assertEquals("kokoro-v1.0.onnx", available.kokoroModelPath.name)
         assertEquals("voices-v1.0.bin", available.kokoroVoicesPath.name)
     }
@@ -80,7 +80,7 @@ class ModelManagerTest {
         assertTrue("Expected Missing, got $status", status is ModelStatus.Missing)
         val missing = status as ModelStatus.Missing
         assertEquals(3, missing.missingFiles.size)
-        assertTrue(missing.missingFiles.contains("whisper-base-en.tflite"))
+        assertTrue(missing.missingFiles.contains("whisper-base-en.bin"))
         assertTrue(missing.missingFiles.contains("kokoro-v1.0.onnx"))
         assertTrue(missing.missingFiles.contains("voices-v1.0.bin"))
     }
@@ -99,14 +99,14 @@ class ModelManagerTest {
     fun `givenOnlyWhisperPresent_whenChecked_thenReturnsMissingKokoroFiles`() {
         val dir = ModelManager.modelsDir(context)
         dir.mkdirs()
-        dir.resolve("whisper-base-en.tflite").createNewFile()
+        dir.resolve("whisper-base-en.bin").createNewFile()
 
         val status = ModelManager.checkModelsAvailable(context)
 
         assertTrue(status is ModelStatus.Missing)
         val missing = status as ModelStatus.Missing
         assertEquals(2, missing.missingFiles.size)
-        assertFalse(missing.missingFiles.contains("whisper-base-en.tflite"))
+        assertFalse(missing.missingFiles.contains("whisper-base-en.bin"))
         assertTrue(missing.missingFiles.contains("kokoro-v1.0.onnx"))
         assertTrue(missing.missingFiles.contains("voices-v1.0.bin"))
     }
@@ -122,7 +122,7 @@ class ModelManagerTest {
         assertTrue(status is ModelStatus.Missing)
         val missing = status as ModelStatus.Missing
         assertEquals(2, missing.missingFiles.size)
-        assertTrue(missing.missingFiles.contains("whisper-base-en.tflite"))
+        assertTrue(missing.missingFiles.contains("whisper-base-en.bin"))
         assertFalse(missing.missingFiles.contains("kokoro-v1.0.onnx"))
         assertTrue(missing.missingFiles.contains("voices-v1.0.bin"))
     }
@@ -131,7 +131,7 @@ class ModelManagerTest {
     fun `givenWhisperAndKokoroModelPresent_whenChecked_thenReturnsMissingVoicesOnly`() {
         val dir = ModelManager.modelsDir(context)
         dir.mkdirs()
-        dir.resolve("whisper-base-en.tflite").createNewFile()
+        dir.resolve("whisper-base-en.bin").createNewFile()
         dir.resolve("kokoro-v1.0.onnx").createNewFile()
 
         val status = ModelManager.checkModelsAvailable(context)

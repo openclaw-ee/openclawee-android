@@ -36,6 +36,10 @@ class VoicePipeline(
     companion object {
         private const val TAG = "VoicePipeline"
     }
+    
+    // Guard against concurrent pipeline runs (prevents double-transcribe bugs)
+    @Volatile
+    private var isPipelineRunning = false
 
     // Kept as a separate reference so endpoint can be updated without recreating the pipeline.
     internal val defaultApiProcessor: ApiLlmProcessor =
@@ -62,9 +66,14 @@ class VoicePipeline(
      * stop manually.
      */
     fun startRecording() {
-        audioRecorder.onSilenceDetected = {
+        // Clear any previous callbacks to prevent stale triggers
+        audioRecorder.onSilenceDetected = null
+        audioRecorder.onRecordingFinished = null
+        
+        // Only run pipeline AFTER file is fully written and header fixed
+        audioRecorder.onRecordingFinished = {
+            Log.d(TAG, "Recording finished callback triggered — starting pipeline")
             pipelineScope.launch {
-                kotlinx.coroutines.delay(100)
                 runPipeline()
             }
         }
@@ -86,8 +95,9 @@ class VoicePipeline(
      */
     suspend fun stopRecordingAndProcess() {
         audioRecorder.stop()
-        kotlinx.coroutines.delay(100)
-        runPipeline()
+        // Wait for recording to finish via callback (not direct call)
+        // This ensures file is closed before transcription
+        kotlinx.coroutines.delay(500)
     }
 
     /** Clears the conversation history so the next exchange starts fresh. */
@@ -105,6 +115,13 @@ class VoicePipeline(
     }
 
     private suspend fun runPipeline() {
+        // Guard against concurrent runs
+        if (isPipelineRunning) {
+            Log.w(TAG, "Pipeline already running, skipping duplicate call")
+            return
+        }
+        isPipelineRunning = true
+        
         try {
             // --- STT ---
             Log.d(TAG, "Starting transcription")
@@ -149,6 +166,9 @@ class VoicePipeline(
         } catch (e: Exception) {
             Log.e(TAG, "Pipeline error", e)
             listener?.onError("Pipeline error: ${e.message}")
+        } finally {
+            isPipelineRunning = false
+            Log.d(TAG, "Pipeline finished, guard released")
         }
     }
 

@@ -31,6 +31,12 @@ open class AudioRecorder(
      * VoicePipeline uses this to auto-trigger the STT→LLM→TTS pipeline.
      */
     var onSilenceDetected: (() -> Unit)? = null
+    
+    /**
+     * Called when the recording thread fully completes (file closed, header fixed).
+     * Use this to know when it's safe to read the WAV file.
+     */
+    var onRecordingFinished: (() -> Unit)? = null
 
     /** Update the silence threshold at runtime (applied immediately on next recording). */
     fun setSilenceThreshold(ms: Long) {
@@ -104,12 +110,17 @@ open class AudioRecorder(
             fos.close()
 
             // Fix up WAV header with actual sizes
+            Log.d(TAG, "Fixing WAV header: totalBytesWritten=$totalBytesWritten")
             fixWavHeader(outputFile, totalBytesWritten)
+            Log.d(TAG, "WAV header fixed, final file size=${outputFile.length()}")
 
             record.stop()
             record.release()
             audioRecord = null
             Log.d(TAG, "Recording stopped. Total bytes: $totalBytesWritten")
+            
+            // Notify listener that file is ready to read
+            onRecordingFinished?.invoke()
         }
     }
 
@@ -167,17 +178,30 @@ open class AudioRecorder(
     private fun fixWavHeader(file: File, dataSize: Int) {
         try {
             val raf = RandomAccessFile(file, "rw")
+            
+            // Write little-endian 32-bit int at position 4 (RIFF chunk size = dataSize + 36)
             raf.seek(4)
-            raf.write(intToLittleEndian(dataSize + 36))
+            val riffSize = dataSize + 36
+            raf.write(byteArrayOf(
+                (riffSize and 0xFF).toByte(),
+                ((riffSize shr 8) and 0xFF).toByte(),
+                ((riffSize shr 16) and 0xFF).toByte(),
+                ((riffSize shr 24) and 0xFF).toByte()
+            ))
+            
+            // Write little-endian 32-bit int at position 40 (data subchunk size)
             raf.seek(40)
-            raf.write(intToLittleEndian(dataSize))
+            raf.write(byteArrayOf(
+                (dataSize and 0xFF).toByte(),
+                ((dataSize shr 8) and 0xFF).toByte(),
+                ((dataSize shr 16) and 0xFF).toByte(),
+                ((dataSize shr 24) and 0xFF).toByte()
+            ))
+            
             raf.close()
+            Log.d(TAG, "WAV header fixed: total file size=${dataSize + 44}, data size=$dataSize")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fix WAV header", e)
         }
-    }
-
-    private fun intToLittleEndian(value: Int): ByteArray {
-        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()
     }
 }

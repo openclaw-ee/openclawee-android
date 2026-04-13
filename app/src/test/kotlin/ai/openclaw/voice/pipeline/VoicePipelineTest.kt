@@ -46,7 +46,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenNormalTranscription_whenPipelineProcesses_thenResponseEchoesInput`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello world"
+        coEvery { whisper.transcribe(any()) } returns "hello world"
 
         pipeline.stopRecordingAndProcess()
 
@@ -56,7 +56,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenBlankTranscription_whenPipelineProcesses_thenOnErrorCalledWithDidNotCatchThat`() = runTest {
-        every { whisper.transcribe(any()) } returns ""
+        coEvery { whisper.transcribe(any()) } returns ""
 
         pipeline.stopRecordingAndProcess()
 
@@ -67,7 +67,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenWhitespaceOnlyTranscription_whenPipelineProcesses_thenOnErrorCalledWithDidNotCatchThat`() = runTest {
-        every { whisper.transcribe(any()) } returns "   "
+        coEvery { whisper.transcribe(any()) } returns "   "
 
         pipeline.stopRecordingAndProcess()
 
@@ -78,7 +78,7 @@ class VoicePipelineTest {
     @Test
     fun `givenMultiWordTranscription_whenPipelineProcesses_thenResponsePreservesFullText`() = runTest {
         val input = "the quick brown fox jumps over the lazy dog"
-        every { whisper.transcribe(any()) } returns input
+        coEvery { whisper.transcribe(any()) } returns input
 
         pipeline.stopRecordingAndProcess()
 
@@ -89,7 +89,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenSuccessfulPipeline_whenProcessed_thenCallsAreInOrder`() = runTest {
-        every { whisper.transcribe(any()) } returns "test"
+        coEvery { whisper.transcribe(any()) } returns "test"
         val callOrder = mutableListOf<String>()
         every { listener.onTranscription(any()) } answers { callOrder.add("transcription") }
         every { listener.onResponse(any()) } answers { callOrder.add("response") }
@@ -102,10 +102,10 @@ class VoicePipelineTest {
 
     @Test
     fun `givenPipeline_whenProcessed_thenAudioRecorderIsStoppedFirst`() = runTest {
-        every { whisper.transcribe(any()) } returns "test"
+        coEvery { whisper.transcribe(any()) } returns "test"
         val callOrder = mutableListOf<String>()
         every { audioRecorder.stop() } answers { callOrder.add("stop") }
-        every { whisper.transcribe(any()) } answers {
+        coEvery { whisper.transcribe(any()) } coAnswers {
             callOrder.add("transcribe")
             "test"
         }
@@ -119,7 +119,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenTranscriberThrows_whenPipelineProcesses_thenTranscriptionFailedErrorReturned`() = runTest {
-        every { whisper.transcribe(any()) } throws RuntimeException("STT failed")
+        coEvery { whisper.transcribe(any()) } throws RuntimeException("STT failed")
 
         pipeline.stopRecordingAndProcess()
 
@@ -130,7 +130,7 @@ class VoicePipelineTest {
 
     @Test
     fun `givenTtsThrows_whenPipelineProcesses_thenVoiceSynthesisFailedErrorReturned`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         every { kokoro.speak(any(), any()) } throws RuntimeException("TTS failed")
 
         pipeline.stopRecordingAndProcess()
@@ -183,7 +183,7 @@ class VoicePipelineTest {
     @Test
     fun `givenNullListener_whenPipelineProcesses_thenDoesNotThrow`() = runTest {
         pipeline.listener = null
-        every { whisper.transcribe(any()) } returns "test"
+        coEvery { whisper.transcribe(any()) } returns "test"
 
         // Should complete without NullPointerException
         pipeline.stopRecordingAndProcess()
