@@ -66,7 +66,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenHappyPath_whenPipelineRuns_thenAllListenerCallbacksInvoked`() = runTest {
-        every { whisper.transcribe(any()) } returns "what is the weather today"
+        coEvery { whisper.transcribe(any()) } returns "what is the weather today"
         coEvery { llmProcessor.process(any()) } returns "It looks sunny and 22°C."
 
         pipeline.stopRecordingAndProcess()
@@ -80,7 +80,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenHappyPath_whenPipelineRuns_thenNoErrorCallbackInvoked`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         coEvery { llmProcessor.process(any()) } returns "Hi there!"
 
         pipeline.stopRecordingAndProcess()
@@ -90,7 +90,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenHappyPath_whenPipelineRuns_thenLlmProcessedWithTranscribedText`() = runTest {
-        every { whisper.transcribe(any()) } returns "set a timer for five minutes"
+        coEvery { whisper.transcribe(any()) } returns "set a timer for five minutes"
         coEvery { llmProcessor.process("set a timer for five minutes") } returns "Timer set."
 
         pipeline.stopRecordingAndProcess()
@@ -102,7 +102,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenBlankTranscription_whenPipelineRuns_thenOnErrorCalledWithUserFriendlyMessage`() = runTest {
-        every { whisper.transcribe(any()) } returns ""
+        coEvery { whisper.transcribe(any()) } returns ""
 
         pipeline.stopRecordingAndProcess()
 
@@ -112,7 +112,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenWhitespaceTranscription_whenPipelineRuns_thenOnErrorCalledWithUserFriendlyMessage`() = runTest {
-        every { whisper.transcribe(any()) } returns "  \t  "
+        coEvery { whisper.transcribe(any()) } returns "  \t  "
 
         pipeline.stopRecordingAndProcess()
 
@@ -123,7 +123,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenSttThrows_whenPipelineRuns_thenTranscriptionFailedErrorReturned`() = runTest {
-        every { whisper.transcribe(any()) } throws RuntimeException("model inference failed")
+        coEvery { whisper.transcribe(any()) } throws RuntimeException("model inference failed")
 
         pipeline.stopRecordingAndProcess()
 
@@ -136,7 +136,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenLlmThrows_whenPipelineRuns_thenApiSettingsErrorReturned`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         coEvery { llmProcessor.process(any()) } throws RuntimeException("connection refused")
 
         pipeline.stopRecordingAndProcess()
@@ -147,7 +147,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenLlmThrows_whenPipelineRuns_thenTranscriptionCallbackStillFired`() = runTest {
-        every { whisper.transcribe(any()) } returns "tell me a joke"
+        coEvery { whisper.transcribe(any()) } returns "tell me a joke"
         coEvery { llmProcessor.process(any()) } throws RuntimeException("timeout")
 
         pipeline.stopRecordingAndProcess()
@@ -160,7 +160,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenTtsThrows_whenPipelineRuns_thenVoiceSynthesisErrorReturned`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         coEvery { llmProcessor.process(any()) } returns "Hi!"
         every { kokoro.speak(any(), any()) } throws RuntimeException("audio track error")
 
@@ -171,7 +171,7 @@ class VoicePipelineIntegrationTest {
 
     @Test
     fun `givenTtsThrows_whenPipelineRuns_thenResponseCallbackStillFired`() = runTest {
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         coEvery { llmProcessor.process(any()) } returns "Hi!"
         every { kokoro.speak(any(), any()) } throws RuntimeException("audio error")
 
@@ -193,7 +193,7 @@ class VoicePipelineIntegrationTest {
     @Test
     fun `givenSilenceDetectedCallback_whenTriggered_thenPipelineProducesSameOutputAsManualStop`() = runTest {
         // The silence handler and manual stop both invoke runPipeline() — verify identical output
-        every { whisper.transcribe(any()) } returns "voice activated"
+        coEvery { whisper.transcribe(any()) } returns "voice activated"
         coEvery { llmProcessor.process("voice activated") } returns "Got it."
 
         pipeline.stopRecordingAndProcess()
@@ -208,7 +208,7 @@ class VoicePipelineIntegrationTest {
     @Test
     fun `givenNullListener_whenPipelineRuns_thenNoNullPointerException`() = runTest {
         pipeline.listener = null
-        every { whisper.transcribe(any()) } returns "hello"
+        coEvery { whisper.transcribe(any()) } returns "hello"
         coEvery { llmProcessor.process(any()) } returns "hi"
 
         pipeline.stopRecordingAndProcess()

@@ -7,13 +7,13 @@ import java.io.File
  * Checks for required model files in [Context.getFilesDir]/models/.
  *
  * Required files:
- *   - whisper-base-en.tflite  (Whisper STT model)
- *   - kokoro-v1.0.onnx        (Kokoro TTS model)
- *   - voices-v1.0.bin         (Kokoro voice embeddings)
+ *   - whisper-base-en.bin  (Whisper STT model, GGML format for whisper.cpp)
+ *   - kokoro-v1.0.onnx     (Kokoro TTS model)
+ *   - voices-v1.0.bin      (Kokoro voice embeddings)
  */
 object ModelManager {
 
-    private const val WHISPER_FILE = "whisper-base-en.tflite"
+    private const val WHISPER_FILE = "whisper-base-en.bin"
     private const val KOKORO_MODEL_FILE = "kokoro-v1.0.onnx"
     private const val KOKORO_VOICES_FILE = "voices-v1.0.bin"
 
