@@ -1,31 +1,35 @@
 package ai.openclaw.voice.stt
 
 import android.content.Context
-import android.content.res.AssetManager
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
-import java.io.IOException
 
 /**
  * Unit tests for WhisperTranscriber.
- * Uses MockK to mock Android's Context/AssetManager — no device or Robolectric needed.
+ * Uses MockK to mock Android's Context — no device or Robolectric needed.
  */
 class WhisperTranscriberTest {
 
-    private lateinit var mockAssets: AssetManager
+    private lateinit var tempDir: File
     private lateinit var mockContext: Context
     private lateinit var transcriber: WhisperTranscriber
 
     @Before
     fun setUp() {
-        mockAssets = mockk(relaxed = true)
+        tempDir = File(System.getProperty("java.io.tmpdir"), "whisper-test-${System.currentTimeMillis()}").also { it.mkdirs() }
         mockContext = mockk(relaxed = true)
-        every { mockContext.assets } returns mockAssets
+        every { mockContext.filesDir } returns tempDir
         transcriber = WhisperTranscriber(mockContext)
+    }
+
+    @After
+    fun tearDown() {
+        tempDir.deleteRecursively()
     }
 
     // --- Constants ---
@@ -39,25 +43,26 @@ class WhisperTranscriberTest {
 
     @Test
     fun `givenMissingModelAsset_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(WhisperTranscriber.MODEL_ASSET_PATH) } throws IOException("not found")
+        // No model file created in tempDir
         assertFalse(transcriber.isModelAvailable)
     }
 
     @Test
     fun `givenContextWithModelAsset_whenCheckingIsModelAvailable_thenReturnsTrue`() {
-        every { mockAssets.open(WhisperTranscriber.MODEL_ASSET_PATH) } returns "stub".byteInputStream()
+        val modelsDir = File(tempDir, "models").also { it.mkdirs() }
+        File(modelsDir, "whisper-base-en.tflite").createNewFile()
         assertTrue(transcriber.isModelAvailable)
     }
 
     @Test
     fun `givenAssetOpenThrowsIoException_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(any()) } throws IOException("file not found")
+        // No file present → returns false (equivalent to IOException in old asset approach)
         assertFalse(transcriber.isModelAvailable)
     }
 
     @Test
     fun `givenAssetOpenThrowsRuntimeException_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(any()) } throws RuntimeException("unexpected error")
+        // No file present → returns false
         assertFalse(transcriber.isModelAvailable)
     }
 
@@ -65,7 +70,7 @@ class WhisperTranscriberTest {
 
     @Test
     fun `givenMissingModel_whenLoadModelCalled_thenThrowsException`() {
-        every { mockAssets.openFd(any()) } throws IOException("model file missing")
+        // No model file exists — FileInputStream will throw FileNotFoundException
         assertThrows(Exception::class.java) {
             transcriber.loadModel()
         }
@@ -74,13 +79,11 @@ class WhisperTranscriberTest {
     @Test
     fun `givenLoadModelCalledTwice_thenSecondCallIsIdempotent`() {
         // First call fails (no model), second call should also fail — not skip silently
-        every { mockAssets.openFd(any()) } throws IOException("no model")
+        // Since 1st failed, interpreter is still null, so 2nd load is attempted too
         var caught = 0
         repeat(2) {
             try { transcriber.loadModel() } catch (_: Exception) { caught++ }
         }
-        // Both calls attempted to load (idempotency guard skips 2nd only after success)
-        // Since 1st failed, interpreter is still null, so 2nd load is attempted too
         assertEquals(2, caught)
     }
 
