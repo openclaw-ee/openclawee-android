@@ -90,6 +90,11 @@ WHISPER_TFLITE_MODEL_URL="https://huggingface.co/spaces/krishnamishra8848/My-Whi
 warn "Downloading Whisper base.en TFLite model (~74MB)..."
 download "$WHISPER_TFLITE_MODEL_URL" "$ASSETS_DIR/whisper-base-en.tflite"
 
+# Whisper BPE vocabulary + mel filter banks (required for token decoding)
+WHISPER_VOCAB_URL="https://github.com/vilassn/whisper_android/raw/master/app/src/main/assets/models/filters_vocab_en.bin"
+warn "Downloading Whisper vocabulary file (~1MB)..."
+download "$WHISPER_VOCAB_URL" "$ASSETS_DIR/filters_vocab_en.bin"
+
 # ============================================================
 # 2. Kokoro-82M ONNX model
 # ============================================================
