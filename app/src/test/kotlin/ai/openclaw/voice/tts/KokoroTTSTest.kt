@@ -1,30 +1,35 @@
 package ai.openclaw.voice.tts
 
 import android.content.Context
-import android.content.res.AssetManager
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import java.io.IOException
+import java.io.File
 
 /**
  * Unit tests for KokoroTTS.
- * Uses MockK to mock Android's Context/AssetManager — no device or Robolectric needed.
+ * Uses MockK to mock Android's Context — no device or Robolectric needed.
  */
 class KokoroTTSTest {
 
-    private lateinit var mockAssets: AssetManager
+    private lateinit var tempDir: File
     private lateinit var mockContext: Context
     private lateinit var kokoro: KokoroTTS
 
     @Before
     fun setUp() {
-        mockAssets = mockk(relaxed = true)
+        tempDir = File(System.getProperty("java.io.tmpdir"), "kokoro-test-${System.currentTimeMillis()}").also { it.mkdirs() }
         mockContext = mockk(relaxed = true)
-        every { mockContext.assets } returns mockAssets
+        every { mockContext.filesDir } returns tempDir
         kokoro = KokoroTTS(mockContext)
+    }
+
+    @After
+    fun tearDown() {
+        tempDir.deleteRecursively()
     }
 
     // --- Constants ---
@@ -53,25 +58,27 @@ class KokoroTTSTest {
 
     @Test
     fun `givenMissingModelAsset_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(KokoroTTS.MODEL_ASSET) } throws IOException("not found")
+        // No model files created — returns false
         assertFalse(kokoro.isModelAvailable)
     }
 
     @Test
     fun `givenContextWithModelAsset_whenCheckingIsModelAvailable_thenReturnsTrue`() {
-        every { mockAssets.open(KokoroTTS.MODEL_ASSET) } returns "stub".byteInputStream()
+        val modelsDir = File(tempDir, "models").also { it.mkdirs() }
+        File(modelsDir, "kokoro-v1.0.onnx").createNewFile()
+        File(modelsDir, "voices-v1.0.bin").createNewFile()
         assertTrue(kokoro.isModelAvailable)
     }
 
     @Test
     fun `givenAssetOpenThrowsIoException_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(any()) } throws IOException("file not found")
+        // No files present → returns false (equivalent to IOException in old asset approach)
         assertFalse(kokoro.isModelAvailable)
     }
 
     @Test
     fun `givenAssetOpenThrowsRuntimeException_whenCheckingIsModelAvailable_thenReturnsFalse`() {
-        every { mockAssets.open(any()) } throws RuntimeException("unexpected error")
+        // No files present → returns false
         assertFalse(kokoro.isModelAvailable)
     }
 
@@ -80,9 +87,8 @@ class KokoroTTSTest {
     @Test
     fun `givenMissingModel_whenLoadModelCalled_thenThrowsException`() {
         // loadModel() calls OrtEnvironment.getEnvironment() which may throw UnsatisfiedLinkError
-        // (ONNX native library not available in JVM test environment) or IOException (missing asset).
+        // (ONNX native library not available in JVM test environment) or FileNotFoundException.
         // Both indicate model loading failure — we verify that no silent success occurs.
-        every { mockAssets.open(any()) } throws IOException("model file missing")
         var threw = false
         try {
             kokoro.loadModel()

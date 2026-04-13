@@ -15,7 +15,7 @@ import java.nio.LongBuffer
 /**
  * On-device TTS using Kokoro-82M ONNX model.
  *
- * Model files expected in assets/models/:
+ * Model files expected in filesDir/models/:
  *   - kokoro-v1.0.onnx   (the ONNX model)
  *   - voices-v1.0.bin    (voice embeddings)
  *
@@ -61,12 +61,11 @@ open class KokoroTTS(private val context: Context) {
     private var audioTrack: AudioTrack? = null
 
     val isModelAvailable: Boolean
-        get() = try {
-            context.assets.open(MODEL_ASSET).use { true }
-        } catch (_: Exception) { false }
+        get() = File(context.filesDir, "models/kokoro-v1.0.onnx").exists() &&
+                File(context.filesDir, "models/voices-v1.0.bin").exists()
 
     /**
-     * Load the ONNX model and voice embeddings from assets.
+     * Load the ONNX model and voice embeddings from filesDir/models/.
      * Must be called before [speak]. Safe to call multiple times.
      */
     fun loadModel() {
@@ -76,8 +75,7 @@ open class KokoroTTS(private val context: Context) {
             val env = OrtEnvironment.getEnvironment()
             ortEnv = env
 
-            // Copy ONNX model from assets to cache (OrtSession needs a file path or byte array)
-            val modelFile = copyAssetToCache(MODEL_ASSET)
+            val modelFile = File(context.filesDir, "models/kokoro-v1.0.onnx")
             val options = OrtSession.SessionOptions().apply {
                 setIntraOpNumThreads(4)
                 setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
@@ -180,7 +178,7 @@ open class KokoroTTS(private val context: Context) {
 
     private fun loadVoiceEmbeddings(): FloatArray {
         return try {
-            val bytes = context.assets.open(VOICES_ASSET).use { it.readBytes() }
+            val bytes = File(context.filesDir, "models/voices-v1.0.bin").readBytes()
             val floats = FloatArray(bytes.size / 4)
             val buf = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             for (i in floats.indices) floats[i] = buf.float
@@ -272,17 +270,4 @@ open class KokoroTTS(private val context: Context) {
         Log.d(TAG, "Playback complete (${audioData.size} samples, ${durationMs}ms)")
     }
 
-    // ---------- Utilities ----------
-
-    private fun copyAssetToCache(assetPath: String): File {
-        val cacheFile = File(context.cacheDir, assetPath.substringAfterLast("/"))
-        if (!cacheFile.exists()) {
-            context.assets.open(assetPath).use { input ->
-                cacheFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        return cacheFile
-    }
 }

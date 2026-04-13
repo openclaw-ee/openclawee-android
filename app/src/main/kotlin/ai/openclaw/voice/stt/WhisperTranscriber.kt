@@ -16,7 +16,7 @@ import kotlin.math.PI
 /**
  * On-device speech-to-text using Whisper base.en TFLite model.
  *
- * Model file expected at: assets/models/whisper-base-en.tflite
+ * Model file expected at: filesDir/models/whisper-base-en.tflite
  * (download via scripts/download_models.sh)
  *
  * The model expects a log-mel spectrogram input of shape [1, 80, 3000]
@@ -49,11 +49,7 @@ open class WhisperTranscriber(private val context: Context) {
     private var melFilterbank: Array<FloatArray>? = null
 
     val isModelAvailable: Boolean
-        get() = try {
-            context.assets.open(MODEL_ASSET_PATH).use { true }
-        } catch (e: Exception) {
-            false
-        }
+        get() = File(context.filesDir, "models/whisper-base-en.tflite").exists()
 
     /**
      * Load the TFLite model. Must be called before [transcribe].
@@ -293,9 +289,9 @@ open class WhisperTranscriber(private val context: Context) {
     }
 
     private fun loadModelBuffer(): MappedByteBuffer {
-        val afd = context.assets.openFd(MODEL_ASSET_PATH)
-        val fis = FileInputStream(afd.fileDescriptor)
+        val modelFile = File(context.filesDir, "models/whisper-base-en.tflite")
+        val fis = FileInputStream(modelFile)
         val channel = fis.channel
-        return channel.map(FileChannel.MapMode.READ_ONLY, afd.startOffset, afd.declaredLength)
+        return channel.map(FileChannel.MapMode.READ_ONLY, 0, modelFile.length())
     }
 }
