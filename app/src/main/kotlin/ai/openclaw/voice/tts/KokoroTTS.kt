@@ -25,6 +25,8 @@ import java.nio.LongBuffer
  */
 open class KokoroTTS(private val context: Context) {
 
+    private val phonemeConverter by lazy { PhonemeConverter(context) }
+
     companion object {
         private const val TAG = "KokoroTTS"
         const val MODEL_ASSET = "models/kokoro-v1.0.onnx"
@@ -121,6 +123,7 @@ open class KokoroTTS(private val context: Context) {
      * Blocks until playback is complete.
      */
     fun speak(text: String, voiceName: String = DEFAULT_VOICE) {
+        Log.i(TAG, "speak() invoked: voice='$voiceName' text='$text'")
         val session = ortSession ?: throw IllegalStateException("Model not loaded — call loadModel() first")
         val env = ortEnv ?: throw IllegalStateException("ORT environment not initialized")
 
@@ -149,37 +152,7 @@ open class KokoroTTS(private val context: Context) {
 
     // ---------- Text preprocessing ----------
 
-    /**
-     * Convert text to Kokoro phoneme token IDs.
-     *
-     * Kokoro uses a character-level tokenizer with a fixed vocabulary.
-     * The full implementation would use espeak-ng phonemization.
-     * This stub uses a simplified direct character mapping for Latin text.
-     *
-     * TODO: Integrate espeak-ng Android bindings for proper G2P conversion.
-     */
-    private fun textToPhonemeIds(text: String): LongArray {
-        // Kokoro vocab: space=0, then ASCII characters mapped to IDs
-        // This is a simplified mapping — replace with full phonemizer for production
-        val cleaned = text.lowercase().filter { it.isLetter() || it.isWhitespace() || it in ".,!?'" }
-        val ids = mutableListOf<Long>()
-        ids.add(0L) // BOS
-        for (ch in cleaned) {
-            val id = when {
-                ch == ' ' -> 1L
-                ch in 'a'..'z' -> (ch - 'a' + 2).toLong()
-                ch == ',' -> 28L
-                ch == '.' -> 29L
-                ch == '!' -> 30L
-                ch == '?' -> 31L
-                ch == '\'' -> 32L
-                else -> 1L
-            }
-            ids.add(id)
-        }
-        ids.add(0L) // EOS
-        return ids.toLongArray()
-    }
+    private fun textToPhonemeIds(text: String): LongArray = phonemeConverter.toKokoroIds(text)
 
     // ---------- Voice embedding ----------
 
