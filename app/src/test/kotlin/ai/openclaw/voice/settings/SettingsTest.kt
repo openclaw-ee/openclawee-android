@@ -46,6 +46,13 @@ class SettingsTest {
         every { editor.apply() } just Runs
     }
 
+    private fun defaultSettings() = Settings.AppSettings(
+        apiEndpoint = Settings.DEFAULT_API_ENDPOINT,
+        silenceThresholdMs = Settings.DEFAULT_SILENCE_THRESHOLD_MS,
+        ttsVoice = Settings.DEFAULT_TTS_VOICE,
+        whisperModel = Settings.DEFAULT_WHISPER_MODEL
+    )
+
     // --- Defaults applied when no prefs stored ---
 
     @Test
@@ -66,62 +73,99 @@ class SettingsTest {
         assertEquals(Settings.DEFAULT_TTS_VOICE, settings.ttsVoice)
     }
 
+    @Test
+    fun `givenNoStoredPrefs_whenLoaded_thenDefaultWhisperModelIsReturned`() {
+        val settings = Settings.load(prefs)
+        assertEquals(Settings.DEFAULT_WHISPER_MODEL, settings.whisperModel)
+    }
+
     // --- Save and reload ---
 
     @Test
     fun `givenCustomEndpoint_whenSavedAndLoaded_thenSameEndpointIsReturned`() {
-        Settings.save(prefs, Settings.AppSettings("http://example.com/api", 1000L, Settings.DEFAULT_TTS_VOICE))
+        Settings.save(prefs, defaultSettings().copy(apiEndpoint = "http://example.com/api"))
         assertEquals("http://example.com/api", Settings.load(prefs).apiEndpoint)
     }
 
     @Test
     fun `givenCustomSilenceThreshold_whenSavedAndLoaded_thenSameThresholdIsReturned`() {
-        Settings.save(prefs, Settings.AppSettings(Settings.DEFAULT_API_ENDPOINT, 2500L, Settings.DEFAULT_TTS_VOICE))
+        Settings.save(prefs, defaultSettings().copy(silenceThresholdMs = 2500L))
         assertEquals(2500L, Settings.load(prefs).silenceThresholdMs)
     }
 
     @Test
     fun `givenCustomTtsVoice_whenSavedAndLoaded_thenSameVoiceIsReturned`() {
-        Settings.save(prefs, Settings.AppSettings(Settings.DEFAULT_API_ENDPOINT, Settings.DEFAULT_SILENCE_THRESHOLD_MS, "bm_george"))
+        Settings.save(prefs, defaultSettings().copy(ttsVoice = "bm_george"))
         assertEquals("bm_george", Settings.load(prefs).ttsVoice)
     }
 
     @Test
+    fun `givenCustomWhisperModel_whenSavedAndLoaded_thenSameModelIsReturned`() {
+        Settings.save(prefs, defaultSettings().copy(whisperModel = "tiny"))
+        assertEquals("tiny", Settings.load(prefs).whisperModel)
+    }
+
+    @Test
     fun `givenAllCustomSettings_whenSavedAndLoaded_thenAllValuesMatch`() {
-        val custom = Settings.AppSettings("http://192.168.1.10:11434/api/generate", 1800L, "am_michael")
+        val custom = Settings.AppSettings(
+            apiEndpoint = "http://192.168.1.10:11434/api/generate",
+            silenceThresholdMs = 1800L,
+            ttsVoice = "am_michael",
+            whisperModel = "tiny"
+        )
         Settings.save(prefs, custom)
         val loaded = Settings.load(prefs)
         assertEquals(custom.apiEndpoint, loaded.apiEndpoint)
         assertEquals(custom.silenceThresholdMs, loaded.silenceThresholdMs)
         assertEquals(custom.ttsVoice, loaded.ttsVoice)
+        assertEquals(custom.whisperModel, loaded.whisperModel)
     }
 
     // --- Overwriting existing settings ---
 
     @Test
     fun `givenExistingSettings_whenSavedAgainWithDifferentValues_thenNewValuesAreReturned`() {
-        Settings.save(prefs, Settings.AppSettings("http://old.example.com", 1000L, "af_heart"))
-        Settings.save(prefs, Settings.AppSettings("http://new.example.com", 3000L, "af_sky"))
+        Settings.save(prefs, defaultSettings().copy(apiEndpoint = "http://old.example.com", ttsVoice = "af_sarah"))
+        Settings.save(prefs, defaultSettings().copy(apiEndpoint = "http://new.example.com", silenceThresholdMs = 3000L, ttsVoice = "af_bella", whisperModel = "tiny"))
 
         val loaded = Settings.load(prefs)
         assertEquals("http://new.example.com", loaded.apiEndpoint)
         assertEquals(3000L, loaded.silenceThresholdMs)
-        assertEquals("af_sky", loaded.ttsVoice)
+        assertEquals("af_bella", loaded.ttsVoice)
+        assertEquals("tiny", loaded.whisperModel)
     }
 
     // --- TTS voices list sanity ---
 
     @Test
     fun `ttsVoicesListContainsExpectedVoices`() {
-        assertTrue(Settings.TTS_VOICES.contains("af_heart"))
-        assertTrue(Settings.TTS_VOICES.contains("af_nova"))
+        assertTrue(Settings.TTS_VOICES.contains("af_bella"))
+        assertTrue(Settings.TTS_VOICES.contains("af_nicole"))
+        assertTrue(Settings.TTS_VOICES.contains("af_sarah"))
         assertTrue(Settings.TTS_VOICES.contains("af_sky"))
+        assertTrue(Settings.TTS_VOICES.contains("am_adam"))
         assertTrue(Settings.TTS_VOICES.contains("am_michael"))
+        assertTrue(Settings.TTS_VOICES.contains("bf_emma"))
+        assertTrue(Settings.TTS_VOICES.contains("bf_isabella"))
         assertTrue(Settings.TTS_VOICES.contains("bm_george"))
+        assertTrue(Settings.TTS_VOICES.contains("bm_lewis"))
     }
 
     @Test
     fun `defaultTtsVoiceIsInVoicesList`() {
         assertTrue(Settings.TTS_VOICES.contains(Settings.DEFAULT_TTS_VOICE))
+    }
+
+    // --- Whisper model list sanity ---
+
+    @Test
+    fun `whisperModelsListContainsBaseAndTiny`() {
+        assertTrue(Settings.WHISPER_MODELS.contains("base"))
+        assertTrue(Settings.WHISPER_MODELS.contains("tiny"))
+    }
+
+    @Test
+    fun `defaultWhisperModelIsInModelsList`() {
+        assertTrue(Settings.WHISPER_MODELS.contains(Settings.DEFAULT_WHISPER_MODEL))
     }
 }

@@ -18,6 +18,7 @@ import com.google.android.material.textview.MaterialTextView
  * Settings bottom sheet allowing the user to configure:
  *   - API endpoint URL
  *   - Silence detection threshold (500–3000 ms, step 100 ms)
+ *   - STT model selection (base / tiny)
  *   - TTS voice selection
  *
  * Settings are persisted to SharedPreferences when the sheet is stopped/dismissed.
@@ -45,6 +46,7 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
         val endpointInput = view.findViewById<TextInputEditText>(R.id.endpointInput)
         val silenceSlider = view.findViewById<Slider>(R.id.silenceThresholdSlider)
         val silenceLabel = view.findViewById<MaterialTextView>(R.id.silenceThresholdLabel)
+        val whisperModelDropdown = view.findViewById<AutoCompleteTextView>(R.id.whisperModelDropdown)
         val voiceDropdown = view.findViewById<AutoCompleteTextView>(R.id.voiceDropdown)
 
         // Populate fields from stored settings
@@ -62,12 +64,20 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
             )
         }
 
-        val adapter = ArrayAdapter(
+        val whisperAdapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_dropdown_item_1line,
+            Settings.WHISPER_MODELS
+        )
+        whisperModelDropdown.setAdapter(whisperAdapter)
+        whisperModelDropdown.setText(current.whisperModel, false)
+
+        val voiceAdapter = ArrayAdapter(
             requireContext(),
             android.R.layout.simple_dropdown_item_1line,
             Settings.TTS_VOICES
         )
-        voiceDropdown.setAdapter(adapter)
+        voiceDropdown.setAdapter(voiceAdapter)
         voiceDropdown.setText(current.ttsVoice, false)
     }
 
@@ -89,6 +99,10 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
             ?.value?.toLong()
             ?: Settings.DEFAULT_SILENCE_THRESHOLD_MS
 
+        val rawModel = v.findViewById<AutoCompleteTextView>(R.id.whisperModelDropdown)
+            ?.text?.toString() ?: ""
+        val whisperModel = if (rawModel in Settings.WHISPER_MODELS) rawModel else Settings.DEFAULT_WHISPER_MODEL
+
         val rawVoice = v.findViewById<AutoCompleteTextView>(R.id.voiceDropdown)
             ?.text?.toString() ?: ""
         val voice = if (rawVoice in Settings.TTS_VOICES) rawVoice else Settings.DEFAULT_TTS_VOICE
@@ -98,7 +112,8 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
             Settings.AppSettings(
                 apiEndpoint = endpoint,
                 silenceThresholdMs = thresholdMs,
-                ttsVoice = voice
+                ttsVoice = voice,
+                whisperModel = whisperModel
             )
         )
     }

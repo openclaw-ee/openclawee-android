@@ -4,21 +4,29 @@ import android.content.Context
 import java.io.File
 
 /**
- * Checks for required model files in [Context.getFilesDir]/models/.
+ * Checks for required model files in [Context.getExternalFilesDir]/models/.
  *
  * Required files:
- *   - whisper-base-en.bin  (Whisper STT model, GGML format for whisper.cpp)
+ *   - ggml-base.en.bin     (Whisper base STT model, GGML format — default)
  *   - kokoro-v1.0.onnx     (Kokoro TTS model)
- *   - voices-v1.0.bin      (Kokoro voice embeddings)
+ *   - <voice_name>.bin     (per-voice embedding files, e.g. af_bella.bin)
+ *
+ * ggml-tiny.en.bin is optional and selected via Settings.
  */
 object ModelManager {
 
-    private const val WHISPER_FILE = "whisper-base-en.bin"
+    private const val WHISPER_FILE = "ggml-base.en.bin"
     private const val KOKORO_MODEL_FILE = "kokoro-v1.0.onnx"
-    private const val KOKORO_VOICES_FILE = "voices-v1.0.bin"
 
-    /** Returns the models directory inside [Context.getFilesDir]. */
-    fun modelsDir(context: Context): File = File(context.filesDir, "models")
+    private val KOKORO_VOICE_FILES = listOf(
+        "af_bella.bin", "af_nicole.bin", "af_sarah.bin", "af_sky.bin",
+        "am_adam.bin", "am_michael.bin",
+        "bf_emma.bin", "bf_isabella.bin",
+        "bm_george.bin", "bm_lewis.bin"
+    )
+
+    /** Returns the models directory inside [Context.getExternalFilesDir]. */
+    fun modelsDir(context: Context): File = File(context.getExternalFilesDir(null), "models")
 
     /**
      * Returns [ModelStatus.Available] if all required model files exist,
@@ -30,13 +38,15 @@ object ModelManager {
 
         if (!File(dir, WHISPER_FILE).exists()) missing.add(WHISPER_FILE)
         if (!File(dir, KOKORO_MODEL_FILE).exists()) missing.add(KOKORO_MODEL_FILE)
-        if (!File(dir, KOKORO_VOICES_FILE).exists()) missing.add(KOKORO_VOICES_FILE)
+        KOKORO_VOICE_FILES.forEach { voiceFile ->
+            if (!File(dir, voiceFile).exists()) missing.add(voiceFile)
+        }
 
         return if (missing.isEmpty()) {
             ModelStatus.Available(
                 whisperPath = File(dir, WHISPER_FILE),
                 kokoroModelPath = File(dir, KOKORO_MODEL_FILE),
-                kokoroVoicesPath = File(dir, KOKORO_VOICES_FILE)
+                kokoroVoicesDir = dir
             )
         } else {
             ModelStatus.Missing(missingFiles = missing)
@@ -48,7 +58,7 @@ sealed class ModelStatus {
     data class Available(
         val whisperPath: File,
         val kokoroModelPath: File,
-        val kokoroVoicesPath: File
+        val kokoroVoicesDir: File
     ) : ModelStatus()
 
     data class Missing(val missingFiles: List<String>) : ModelStatus()

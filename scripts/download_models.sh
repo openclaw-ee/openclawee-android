@@ -3,20 +3,19 @@
 # download_models.sh — Download AI model files for OpenClaw Voice
 #
 # Downloads:
-#   1. Whisper base.en TFLite model (from HuggingFace)
-#   2. Kokoro-82M ONNX model + voice embeddings (from HuggingFace)
+#   1. Whisper ggml models (base.en, tiny.en) from whisper.cpp
+#   2. Kokoro-82M ONNX model + individual voice embeddings
 #
-# Places files in: app/src/main/assets/models/
+# Places files in: models/ (repo root, git-ignored, never bundled in APK)
 #
 # Usage:
-#   chmod +x scripts/download_models.sh
 #   ./scripts/download_models.sh
 #
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-ASSETS_DIR="$PROJECT_ROOT/app/src/main/assets/models"
+MODELS_DIR="$PROJECT_ROOT/models"
 
 # Colors
 RED='\033[0;31m'
@@ -44,7 +43,8 @@ fi
 download() {
     local url="$1"
     local dest="$2"
-    local name="$(basename "$dest")"
+    local name
+    name="$(basename "$dest")"
 
     if [ -f "$dest" ]; then
         log "Already exists: $name (skipping)"
@@ -58,51 +58,59 @@ download() {
         wget --show-progress -q -O "$dest" "$url"
     fi
 
-    if [ -f "$dest" ]; then
-        local size=$(du -sh "$dest" | cut -f1)
+    if [ -f "$dest" ] && [ -s "$dest" ]; then
+        local size
+        size=$(du -sh "$dest" | cut -f1)
         log "  ✓ $name ($size)"
     else
         error "  ✗ Failed to download $name"
+        rm -f "$dest"
         exit 1
     fi
 }
 
-mkdir -p "$ASSETS_DIR"
-log "Target directory: $ASSETS_DIR"
+mkdir -p "$MODELS_DIR"
+log "Target directory: $MODELS_DIR"
 
 # ============================================================
-# 1. Whisper base.en TFLite model
+# 1. Whisper GGML models (for whisper.cpp Android)
 # ============================================================
-# Source: https://huggingface.co/openai/whisper-base.en
-# TFLite conversion from: whisper_tflite project
+# Source: https://github.com/ggml-org/whisper.cpp
+# These are the models used by WhisperCore_Android
 #
-# The whisper-tflite repo provides a pre-converted TFLite model
-# at the URL below. This is whisper-base.en with beam search disabled
-# (greedy decoding) for mobile performance.
-#
-WHISPER_URL="https://huggingface.co/openai/whisper-base.en/resolve/main/model.safetensors"
-WHISPER_TFLITE_URL="https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+WHISPER_BASE_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
-# Use the whisper.cpp GGML format as a reference — for TFLite we use
-# the whisper-tflite Android project's converted model:
-WHISPER_TFLITE_MODEL_URL="https://huggingface.co/spaces/krishnamishra8848/My-Whisper-App/resolve/main/whisper_base_en.tflite"
+# warn "Downloading Whisper base.en GGML model (~150MB)..."
+download "$WHISPER_BASE_URL/ggml-base.en.bin" "$MODELS_DIR/ggml-base.en.bin"
 
-warn "Downloading Whisper base.en TFLite model (~74MB)..."
-download "$WHISPER_TFLITE_MODEL_URL" "$ASSETS_DIR/whisper-base-en.tflite"
+# warn "Downloading Whisper tiny.en GGML model (~75MB)..."
+download "$WHISPER_BASE_URL/ggml-tiny.en.bin" "$MODELS_DIR/ggml-tiny.en.bin"
 
 # ============================================================
 # 2. Kokoro-82M ONNX model
 # ============================================================
-# Source: https://huggingface.co/hexgrad/Kokoro-82M
-# ONNX export: https://huggingface.co/onnx-community/Kokoro-82M-ONNX
+# Source: https://huggingface.co/onnx-community/Kokoro-82M-ONNX
 #
 KOKORO_BASE_URL="https://huggingface.co/onnx-community/Kokoro-82M-ONNX/resolve/main"
 
-warn "Downloading Kokoro-82M ONNX model (~320MB)..."
-download "$KOKORO_BASE_URL/model.onnx" "$ASSETS_DIR/kokoro-v1.0.onnx"
+# warn "Downloading Kokoro-82M ONNX model (~320MB)..."
+download "$KOKORO_BASE_URL/onnx/model.onnx" "$MODELS_DIR/kokoro-v1.0.onnx"
 
-warn "Downloading Kokoro voice embeddings (~9MB)..."
-download "$KOKORO_BASE_URL/voices.bin" "$ASSETS_DIR/voices-v1.0.bin"
+# ============================================================
+# 3. Kokoro voice embeddings (individual .bin files)
+# ============================================================
+# warn "Downloading Kokoro voice embeddings (~5MB)..."
+
+KOKORO_VOICES=(
+    af_bella af_nicole af_sarah af_sky
+    am_adam am_michael
+    bf_emma bf_isabella
+    bm_george bm_lewis
+)
+
+for voice in "${KOKORO_VOICES[@]}"; do
+    download "$KOKORO_BASE_URL/voices/${voice}.bin" "$MODELS_DIR/${voice}.bin"
+done
 
 # ============================================================
 # Summary
@@ -112,11 +120,13 @@ log "============================================"
 log " All models downloaded successfully!"
 log "============================================"
 echo ""
-log "Files in $ASSETS_DIR:"
-ls -lh "$ASSETS_DIR/"
+log "Files in $MODELS_DIR:"
+ls -lh "$MODELS_DIR/"
 echo ""
 warn "Next steps:"
-echo "  1. Rebuild the app:  ./gradlew assembleDebug"
-echo "  2. Install on device: adb install -r app/build/outputs/apk/debug/app-debug.apk"
+echo "  1. Push models to device:"
+echo "     adb shell mkdir -p /sdcard/Android/data/ai.openclaw.voice/files/models"
+echo "     adb push models/ /sdcard/Android/data/ai.openclaw.voice/files/"
+echo "  2. Rebuild and install: ./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk"
 echo ""
-log "See MODEL_SETUP.md for more details."
+log "Models are NOT bundled in the APK. Push them to the device before running the app."

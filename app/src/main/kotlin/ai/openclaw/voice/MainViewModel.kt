@@ -152,6 +152,14 @@ class MainViewModel @JvmOverloads constructor(
 
     private fun checkModelsAndLoad() {
         viewModelScope.launch(ioDispatcher) {
+            // Apply saved whisper model variant before availability check and load
+            val startPrefs = getApplication<Application>().getSharedPreferences(
+                SettingsBottomSheet.PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+            val startSettings = Settings.load(startPrefs)
+            whisper.modelFileName = WhisperTranscriber.modelFileNameFor(startSettings.whisperModel)
+
             val whisperReady = whisper.isModelAvailable
             val kokoroReady = kokoro.isModelAvailable
 

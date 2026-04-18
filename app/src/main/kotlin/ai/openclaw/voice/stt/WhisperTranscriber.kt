@@ -16,24 +16,32 @@ import kotlin.coroutines.resumeWithException
 /**
  * On-device speech-to-text using whisper.cpp via WhisperCore_Android.
  *
- * Model file expected at: filesDir/models/whisper-base-en.bin
- * (GGML format — download via scripts/download_models.sh)
- *
- * This replaces the previous TFLite implementation which spent ~58 seconds
- * on mel spectrogram computation in Kotlin. whisper.cpp runs natively with
- * ARM NEON optimisation, expected ~2-5s total on Pixel 9.
+ * Model files live in: getExternalFilesDir(null)/models/
+ * Supported filenames: ggml-base.en.bin (default), ggml-tiny.en.bin
+ * Push via ADB — see MODEL_SETUP.md.
  */
 open class WhisperTranscriber(private val context: Context) {
 
     companion object {
         private const val TAG = "WhisperTranscriber"
-        const val MODEL_FILE = "whisper-base-en.bin"
+        const val MODEL_BASE = "ggml-base.en.bin"
+        const val MODEL_TINY = "ggml-tiny.en.bin"
+
+        fun modelFileNameFor(variant: String): String = when (variant) {
+            "tiny" -> MODEL_TINY
+            else -> MODEL_BASE
+        }
     }
+
+    /** Active model filename — set before calling [loadModel]. Defaults to [MODEL_BASE]. */
+    var modelFileName: String = MODEL_BASE
 
     private var whisper: Whisper? = null
 
+    private fun modelsDir(): File = File(context.getExternalFilesDir(null), "models")
+
     val isModelAvailable: Boolean
-        get() = File(context.filesDir, "models/$MODEL_FILE").exists()
+        get() = File(modelsDir(), modelFileName).exists()
 
     /**
      * Load the whisper.cpp model. Must be called before [transcribe].
@@ -42,7 +50,7 @@ open class WhisperTranscriber(private val context: Context) {
     fun loadModel() {
         if (whisper != null) return
 
-        val modelFile = File(context.filesDir, "models/$MODEL_FILE")
+        val modelFile = File(modelsDir(), modelFileName)
         if (!modelFile.exists()) {
             throw IllegalStateException("Model file not found: ${modelFile.absolutePath}")
         }
