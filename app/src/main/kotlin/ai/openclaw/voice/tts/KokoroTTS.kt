@@ -16,8 +16,8 @@ import java.nio.LongBuffer
  * On-device TTS using Kokoro-82M ONNX model.
  *
  * Model files expected in filesDir/models/:
- *   - kokoro-v1.0.onnx   (the ONNX model)
- *   - voices-v1.0.bin    (voice embeddings)
+ *   - kokoro-v1.0.onnx        (the ONNX model)
+ *   - <voice_name>.bin        (per-voice embedding, e.g. af_bella.bin)
  *
  * Output: 24kHz mono float32 PCM, played via AudioTrack.
  *
@@ -25,30 +25,25 @@ import java.nio.LongBuffer
  */
 open class KokoroTTS(private val context: Context) {
 
+    private val phonemeConverter by lazy { PhonemeConverter(context) }
+
     companion object {
         private const val TAG = "KokoroTTS"
         const val MODEL_ASSET = "models/kokoro-v1.0.onnx"
-        const val VOICES_ASSET = "models/voices-v1.0.bin"
 
         // Output sample rate of Kokoro model
         const val OUTPUT_SAMPLE_RATE = 24000
 
         // Voice embedding dimension for Kokoro-82M
-        private const val VOICE_DIM = 256
         private const val STYLE_DIM = 256
 
-        // Default voice (can be overridden per-agent in Phase 2)
-        const val DEFAULT_VOICE = "af_heart"
+        const val DEFAULT_VOICE = "af_bella"
 
-        // Voice index mapping (subset — extend from voices-v1.0.bin)
-        private val VOICE_INDEX = mapOf(
-            "af_heart" to 0,
-            "af_bella" to 1,
-            "af_sarah" to 2,
-            "am_adam" to 3,
-            "am_michael" to 4,
-            "bf_emma" to 5,
-            "bm_george" to 6
+        val KNOWN_VOICES = setOf(
+            "af_bella", "af_nicole", "af_sarah", "af_sky",
+            "am_adam", "am_michael",
+            "bf_emma", "bf_isabella",
+            "bm_george", "bm_lewis"
         )
     }
 
@@ -57,12 +52,40 @@ open class KokoroTTS(private val context: Context) {
 
     private var ortEnv: OrtEnvironment? = null
     private var ortSession: OrtSession? = null
-    private var voiceEmbeddings: FloatArray? = null
+    private val voiceCache = mutableMapOf<String, FloatArray>()
     private var audioTrack: AudioTrack? = null
 
     val isModelAvailable: Boolean
-        get() = File(context.filesDir, "models/kokoro-v1.0.onnx").exists() &&
-                File(context.filesDir, "models/voices-v1.0.bin").exists()
+        get() {
+            val modelsDir = File(context.getExternalFilesDir(null), "models")
+            val available = File(modelsDir, "kokoro-v1.0.onnx").exists() &&
+                    KNOWN_VOICES.any { File(modelsDir, "$it.bin").exists() }
+            Log.i(TAG, "isModelAvailable: $available")
+            return available
+        }
+
+    /**
+     * Copy Kokoro model files from assets into filesDir/models/ if not already present.
+     * Call before [loadModel].
+     */
+    fun extractModels() {
+        val modelsDir = File(context.getExternalFilesDir(null), "models").also { it.mkdirs() }
+        val assets = listOf(MODEL_ASSET to "kokoro-v1.0.onnx") +
+                KNOWN_VOICES.map { "models/$it.bin" to "$it.bin" }
+        assets.forEach { (asset, filename) ->
+            val dest = File(modelsDir, filename)
+            if (!dest.exists()) {
+                try {
+                    context.assets.open(asset).use { input ->
+                        dest.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    Log.i(TAG, "Extracted $asset → ${dest.absolutePath}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not extract $asset (may not be bundled as asset)", e)
+                }
+            }
+        }
+    }
 
     /**
      * Load the ONNX model and voice embeddings from filesDir/models/.
@@ -75,7 +98,7 @@ open class KokoroTTS(private val context: Context) {
             val env = OrtEnvironment.getEnvironment()
             ortEnv = env
 
-            val modelFile = File(context.filesDir, "models/kokoro-v1.0.onnx")
+            val modelFile = File(context.getExternalFilesDir(null), "models/kokoro-v1.0.onnx")
             val options = OrtSession.SessionOptions().apply {
                 setIntraOpNumThreads(4)
                 setInterOpNumThreads(4)
@@ -83,13 +106,11 @@ open class KokoroTTS(private val context: Context) {
                 addConfigEntry("session.strict_opset_check", "0")
             }
             ortSession = env.createSession(modelFile.absolutePath, options)
-            Log.d(TAG, "Kokoro ONNX session created")
+            Log.i(TAG, "Kokoro ONNX session created")
             Log.d(TAG, "Input names: ${ortSession!!.inputNames}")
             Log.d(TAG, "Output names: ${ortSession!!.outputNames}")
 
-            // Load voice embeddings
-            voiceEmbeddings = loadVoiceEmbeddings()
-            Log.d(TAG, "Voice embeddings loaded (${voiceEmbeddings?.size} floats)")
+            Log.i(TAG, "Kokoro session ready; voice embeddings loaded on demand")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load Kokoro model", e)
@@ -102,6 +123,7 @@ open class KokoroTTS(private val context: Context) {
      * Blocks until playback is complete.
      */
     fun speak(text: String, voiceName: String = DEFAULT_VOICE) {
+        Log.i(TAG, "speak() invoked: voice='$voiceName' text='$text'")
         val session = ortSession ?: throw IllegalStateException("Model not loaded — call loadModel() first")
         val env = ortEnv ?: throw IllegalStateException("ORT environment not initialized")
 
@@ -130,64 +152,29 @@ open class KokoroTTS(private val context: Context) {
 
     // ---------- Text preprocessing ----------
 
-    /**
-     * Convert text to Kokoro phoneme token IDs.
-     *
-     * Kokoro uses a character-level tokenizer with a fixed vocabulary.
-     * The full implementation would use espeak-ng phonemization.
-     * This stub uses a simplified direct character mapping for Latin text.
-     *
-     * TODO: Integrate espeak-ng Android bindings for proper G2P conversion.
-     */
-    private fun textToPhonemeIds(text: String): LongArray {
-        // Kokoro vocab: space=0, then ASCII characters mapped to IDs
-        // This is a simplified mapping — replace with full phonemizer for production
-        val cleaned = text.lowercase().filter { it.isLetter() || it.isWhitespace() || it in ".,!?'" }
-        val ids = mutableListOf<Long>()
-        ids.add(0L) // BOS
-        for (ch in cleaned) {
-            val id = when {
-                ch == ' ' -> 1L
-                ch in 'a'..'z' -> (ch - 'a' + 2).toLong()
-                ch == ',' -> 28L
-                ch == '.' -> 29L
-                ch == '!' -> 30L
-                ch == '?' -> 31L
-                ch == '\'' -> 32L
-                else -> 1L
-            }
-            ids.add(id)
-        }
-        ids.add(0L) // EOS
-        return ids.toLongArray()
-    }
+    private fun textToPhonemeIds(text: String): LongArray = phonemeConverter.toKokoroIds(text)
 
     // ---------- Voice embedding ----------
 
     /**
-     * Extract the style embedding for [voiceName] from the binary voice file.
-     * voices-v1.0.bin stores embeddings as float32 arrays, one per voice.
+     * Load and return the style embedding for [voiceName] from its dedicated .bin file.
+     * Results are cached in [voiceCache] to avoid repeated disk reads.
      */
     private fun getVoiceStyle(voiceName: String): FloatArray {
-        val embeddings = voiceEmbeddings ?: return FloatArray(STYLE_DIM) // zero fallback
-        val voiceIdx = VOICE_INDEX[voiceName] ?: 0
-        val start = voiceIdx * STYLE_DIM
-        val end = minOf(start + STYLE_DIM, embeddings.size)
-        return embeddings.copyOfRange(start, end).also {
-            if (it.size < STYLE_DIM) it.copyOf(STYLE_DIM) // pad if needed
-        }
+        val name = if (voiceName in KNOWN_VOICES) voiceName else DEFAULT_VOICE
+        return voiceCache.getOrPut(name) { loadVoiceFile(name) }
     }
 
-    private fun loadVoiceEmbeddings(): FloatArray {
+    private fun loadVoiceFile(voiceName: String): FloatArray {
         return try {
-            val bytes = File(context.filesDir, "models/voices-v1.0.bin").readBytes()
+            val bytes = File(context.getExternalFilesDir(null), "models/$voiceName.bin").readBytes()
             val floats = FloatArray(bytes.size / 4)
             val buf = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             for (i in floats.indices) floats[i] = buf.float
-            floats
+            floats.copyOf(STYLE_DIM)
         } catch (e: Exception) {
-            Log.w(TAG, "Could not load voice embeddings, using zeros", e)
-            FloatArray(STYLE_DIM * VOICE_INDEX.size)
+            Log.w(TAG, "Could not load voice file $voiceName.bin, using zeros", e)
+            FloatArray(STYLE_DIM)
         }
     }
 

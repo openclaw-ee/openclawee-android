@@ -23,7 +23,7 @@ class KokoroTTSTest {
     fun setUp() {
         tempDir = File(System.getProperty("java.io.tmpdir"), "kokoro-test-${System.currentTimeMillis()}").also { it.mkdirs() }
         mockContext = mockk(relaxed = true)
-        every { mockContext.filesDir } returns tempDir
+        every { mockContext.getExternalFilesDir(null) } returns tempDir
         kokoro = KokoroTTS(mockContext)
     }
 
@@ -40,8 +40,8 @@ class KokoroTTSTest {
     }
 
     @Test
-    fun `verifyDefaultVoiceIsAfHeart`() {
-        assertEquals("af_heart", KokoroTTS.DEFAULT_VOICE)
+    fun `verifyDefaultVoiceIsAfBella`() {
+        assertEquals("af_bella", KokoroTTS.DEFAULT_VOICE)
     }
 
     @Test
@@ -50,8 +50,17 @@ class KokoroTTSTest {
     }
 
     @Test
-    fun `verifyVoicesAssetPath`() {
-        assertEquals("models/voices-v1.0.bin", KokoroTTS.VOICES_ASSET)
+    fun `verifyKnownVoicesContainsExpectedVoices`() {
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("af_bella"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("af_nicole"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("af_sarah"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("af_sky"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("am_adam"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("am_michael"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("bf_emma"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("bf_isabella"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("bm_george"))
+        assertTrue(KokoroTTS.KNOWN_VOICES.contains("bm_lewis"))
     }
 
     // --- Model availability ---
@@ -66,7 +75,7 @@ class KokoroTTSTest {
     fun `givenContextWithModelAsset_whenCheckingIsModelAvailable_thenReturnsTrue`() {
         val modelsDir = File(tempDir, "models").also { it.mkdirs() }
         File(modelsDir, "kokoro-v1.0.onnx").createNewFile()
-        File(modelsDir, "voices-v1.0.bin").createNewFile()
+        File(modelsDir, "af_bella.bin").createNewFile()
         assertTrue(kokoro.isModelAvailable)
     }
 

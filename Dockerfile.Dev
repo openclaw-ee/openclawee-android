@@ -1,0 +1,19 @@
+FROM devon-devcontainer-base:latest
+
+# Install Java and Android SDK (project-specific)
+RUN apt-get update && apt-get install -y openjdk-21-jdk unzip && rm -rf /var/lib/apt/lists/*
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# Android SDK
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=$ANDROID_SDK_ROOT
+ENV PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
+
+RUN mkdir -p $ANDROID_SDK_ROOT && cd $ANDROID_SDK_ROOT && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip && \
+    unzip -q cmdline-tools.zip && mkdir -p cmdline-tools/latest && \
+    mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true && rm cmdline-tools.zip && \
+    yes | sdkmanager --licenses && \
+    sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+

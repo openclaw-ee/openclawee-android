@@ -1,0 +1,1 @@
+../../devcontainer/run-claude.sh

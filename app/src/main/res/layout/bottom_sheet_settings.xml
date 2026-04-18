@@ -70,6 +70,33 @@
         app:trackColorActive="@color/accent"
         app:trackColorInactive="@color/surface_variant" />
 
+    <!-- STT Model label -->
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="STT Model"
+        android:textSize="11sp"
+        android:textColor="@color/text_secondary"
+        android:textAllCaps="true"
+        android:letterSpacing="0.1"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/whisperModelInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+        android:layout_marginBottom="24dp">
+
+        <AutoCompleteTextView
+            android:id="@+id/whisperModelDropdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none"
+            android:text="base"
+            android:textColor="@color/text_primary" />
+    </com.google.android.material.textfield.TextInputLayout>
+
     <!-- TTS Voice label -->
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -93,7 +120,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="none"
-            android:text="af_heart"
+            android:text="af_bella"
             android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 

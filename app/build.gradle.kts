@@ -81,6 +81,9 @@ dependencies {
     // OkHttp for LLM API calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // IPA transcription for Kokoro G2P (fallback for unknown words)
+    implementation("com.github.medavox:IPA-Transcribers:v0.2")
+
     // Unit test dependencies
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")

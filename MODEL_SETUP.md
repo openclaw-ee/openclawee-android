@@ -1,128 +1,140 @@
-# Model Setup — OpenClaw Voice
+# Model Setup — OpenClaw Voice / Chloe
 
-The app requires two AI model files that are not included in the repository (too large for git).
-You must download them before building/running the app.
+AI model files are **not bundled in the APK** — the app loads them from the device's external
+files directory at runtime. You must push the models to the device before running the app.
 
-## Quick Start
+## Target path on device
 
-```bash
-chmod +x scripts/download_models.sh
-./scripts/download_models.sh
+```
+/sdcard/Android/data/ai.openclaw.voice/files/models/
 ```
 
-Then rebuild:
-```bash
-./gradlew assembleDebug
-```
+(This maps to `Context.getExternalFilesDir(null)/models/` in Android.)
 
 ---
 
-## Models Overview
+## Models required
 
 | Model | File | Size | Purpose |
 |-------|------|------|---------|
-| Whisper base.en (TFLite) | `whisper-base-en.tflite` | ~74 MB | Speech-to-text |
+| Whisper base.en (GGML) | `ggml-base.en.bin` | ~142 MB | Speech-to-text (default) |
+| Whisper tiny.en (GGML) | `ggml-tiny.en.bin` | ~75 MB | Speech-to-text (faster, lower accuracy) |
 | Kokoro-82M (ONNX) | `kokoro-v1.0.onnx` | ~320 MB | Text-to-speech |
-| Kokoro voices | `voices-v1.0.bin` | ~9 MB | Voice embeddings |
+| Kokoro voices | `af_bella.bin`, `af_nicole.bin`, … | ~9 MB total | Voice embeddings |
 
-All files go in: `app/src/main/assets/models/`
+At minimum the app needs **one** Whisper model (base or tiny), the Kokoro ONNX model, and at
+least the voice files for the selected TTS voice.
 
 ---
 
-## Manual Download
+## Downloading the models
 
-### Whisper base.en (TFLite)
+The easiest way is to run the provided script, which downloads everything into `models/` at the repo root (git-ignored):
 
-The app uses a TFLite-converted version of OpenAI's Whisper base.en model.
-
-**Option A — Automated script:**
 ```bash
 ./scripts/download_models.sh
 ```
 
-**Option B — Manual:**
-1. Download `whisper-base-en.tflite` from HuggingFace or convert yourself
-2. Place at: `app/src/main/assets/models/whisper-base-en.tflite`
+Or download manually:
 
-**Convert from whisper.cpp** (alternative):
+### Whisper (GGML format)
+
+Download directly from the whisper.cpp model repository:
+
 ```bash
-# Install whisper.cpp and convert
+# base.en — recommended default (~142 MB)
+wget -O ggml-base.en.bin \
+  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+
+# tiny.en — faster, lower accuracy (~75 MB)
+wget -O ggml-tiny.en.bin \
+  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin"
+```
+
+Or use the whisper.cpp helper script:
+
+```bash
 git clone https://github.com/ggerganov/whisper.cpp
 cd whisper.cpp
-bash models/download-ggml-model.sh base.en
-# Then use the TFLite export tool from the whisper-android project
+bash models/download-ggml-model.sh base.en   # → models/ggml-base.en.bin
+bash models/download-ggml-model.sh tiny.en   # → models/ggml-tiny.en.bin
 ```
 
-### Kokoro-82M ONNX
+### Kokoro-82M ONNX + voices
 
-**Option A — HuggingFace (recommended):**
 ```bash
 pip install huggingface_hub
-python -c "
+python3 - <<'EOF'
 from huggingface_hub import hf_hub_download
-hf_hub_download('onnx-community/Kokoro-82M-ONNX', 'model.onnx', local_dir='app/src/main/assets/models/')
-hf_hub_download('onnx-community/Kokoro-82M-ONNX', 'voices.bin', local_dir='app/src/main/assets/models/')
-"
-# Rename to match expected filenames:
-mv app/src/main/assets/models/model.onnx app/src/main/assets/models/kokoro-v1.0.onnx
-mv app/src/main/assets/models/voices.bin app/src/main/assets/models/voices-v1.0.bin
-```
-
-**Option B — Direct download:**
-```bash
-wget -O app/src/main/assets/models/kokoro-v1.0.onnx \
-  "https://huggingface.co/onnx-community/Kokoro-82M-ONNX/resolve/main/model.onnx"
-
-wget -O app/src/main/assets/models/voices-v1.0.bin \
-  "https://huggingface.co/onnx-community/Kokoro-82M-ONNX/resolve/main/voices.bin"
+hf_hub_download("onnx-community/Kokoro-82M-ONNX", "model.onnx", local_dir="kokoro/")
+hf_hub_download("onnx-community/Kokoro-82M-ONNX", "voices.bin",  local_dir="kokoro/")
+EOF
+mv kokoro/model.onnx kokoro-v1.0.onnx
+# Split voices.bin into per-voice .bin files using scripts/split_voices.py (if available)
 ```
 
 ---
 
-## Verifying the Models
+## Pushing models to the device via ADB
 
-After download, check that all files exist:
+After running `scripts/download_models.sh`, models land in `models/` at the repo root.
+Push them all at once:
+
 ```bash
-ls -lh app/src/main/assets/models/
-# Expected output:
-# -rw-r--r--  whisper-base-en.tflite   ~74M
-# -rw-r--r--  kokoro-v1.0.onnx         ~320M
-# -rw-r--r--  voices-v1.0.bin          ~9M
+adb shell mkdir -p /sdcard/Android/data/ai.openclaw.voice/files/models
+adb push models/ /sdcard/Android/data/ai.openclaw.voice/files/
 ```
+
+Or push individual files if needed:
+
+```bash
+adb push models/ggml-base.en.bin   /sdcard/Android/data/ai.openclaw.voice/files/models/
+adb push models/ggml-tiny.en.bin   /sdcard/Android/data/ai.openclaw.voice/files/models/  # optional
+adb push models/kokoro-v1.0.onnx   /sdcard/Android/data/ai.openclaw.voice/files/models/
+adb push models/af_bella.bin       /sdcard/Android/data/ai.openclaw.voice/files/models/
+# ... etc for remaining voice files
+```
+
+### Verify files on device
+
+```bash
+adb shell ls -lh /sdcard/Android/data/ai.openclaw.voice/files/models/
+```
+
+Expected output (at minimum):
+```
+ggml-base.en.bin    ~142M
+kokoro-v1.0.onnx    ~320M
+af_bella.bin        ~900K
+...
+```
+
+---
+
+## Selecting the Whisper model in-app
+
+Open **Settings** (gear icon) and choose the STT Model:
+
+- **base** — uses `ggml-base.en.bin` — better accuracy, ~2–5 s on Pixel 9 (default)
+- **tiny** — uses `ggml-tiny.en.bin` — faster, lower accuracy
+
+The selected model file must be present on the device. If it is missing the app will show a
+"Models not loaded" screen.
 
 ---
 
 ## Troubleshooting
 
-### "Models not downloaded" screen
-The app checks for model files at startup. If you see this screen:
-1. Confirm files are in `app/src/main/assets/models/`
-2. Rebuild and reinstall: `./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
+### "Models not loaded" screen
+1. Confirm the expected file is in the device models directory (`adb shell ls …` above).
+2. Check that the app has been granted **Files** / storage permission (or that the external
+   files dir is accessible — it requires the app to be installed).
+3. Try reinstalling the APK and re-pushing models:
+   ```bash
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   adb push ggml-base.en.bin /sdcard/Android/data/ai.openclaw.voice/files/models/
+   ```
 
-### App size
-With models bundled in assets, the APK will be ~400MB. This is expected for Phase 1.
-Phase 2 will implement on-demand model download to keep the APK small.
-
-### TFLite Whisper accuracy
-The TFLite model uses greedy decoding (no beam search) for speed on mobile.
-For higher accuracy at the cost of latency, switch to whisper-small.en.
-
-### Kokoro voices
-The default voice is `af_heart`. Available voices in `voices-v1.0.bin`:
-- `af_heart` (American female, warm)
-- `af_bella` (American female)
-- `af_sarah` (American female)
-- `am_adam` (American male)
-- `am_michael` (American male)
-- `bf_emma` (British female)
-- `bm_george` (British male)
-
-To change the default voice, modify `KokoroTTS.DEFAULT_VOICE`.
-
----
-
-## Phase 2 Notes
-
-In Phase 2, model downloads will be handled in-app with a setup screen,
-progress indicators, and checksum verification. The LLM stub in
-`VoicePipeline.generateResponse()` will be replaced with real LLM integration.
+### APK size
+Models are not embedded in the APK, so the release APK stays small (< 20 MB).
+All inference happens on-device after first-push setup.

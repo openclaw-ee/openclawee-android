@@ -15,9 +15,7 @@ local.properties
 *.iws
 
 # Model files (too large for git — use scripts/download_models.sh)
-app/src/main/assets/models/*.tflite
-app/src/main/assets/models/*.onnx
-app/src/main/assets/models/*.bin
+/models/
 
-# Downloaded packages (from setup-aapt2-arm64.sh)
+# Debian packages
 *.deb

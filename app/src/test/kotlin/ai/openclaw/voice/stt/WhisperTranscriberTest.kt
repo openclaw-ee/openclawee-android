@@ -25,7 +25,7 @@ class WhisperTranscriberTest {
     fun setUp() {
         tempDir = File(System.getProperty("java.io.tmpdir"), "whisper-test-${System.currentTimeMillis()}").also { it.mkdirs() }
         mockContext = mockk(relaxed = true)
-        every { mockContext.filesDir } returns tempDir
+        every { mockContext.getExternalFilesDir(null) } returns tempDir
     }
 
     @After
@@ -36,8 +36,28 @@ class WhisperTranscriberTest {
     // --- Constants ---
 
     @Test
-    fun `modelFileNameIsWhisperBaseEnBin`() {
-        assertEquals("whisper-base-en.bin", WhisperTranscriber.MODEL_FILE)
+    fun `modelBaseConstantIsGgmlBaseEnBin`() {
+        assertEquals("ggml-base.en.bin", WhisperTranscriber.MODEL_BASE)
+    }
+
+    @Test
+    fun `modelTinyConstantIsGgmlTinyEnBin`() {
+        assertEquals("ggml-tiny.en.bin", WhisperTranscriber.MODEL_TINY)
+    }
+
+    @Test
+    fun `modelFileNameForBase_returnsModelBase`() {
+        assertEquals(WhisperTranscriber.MODEL_BASE, WhisperTranscriber.modelFileNameFor("base"))
+    }
+
+    @Test
+    fun `modelFileNameForTiny_returnsModelTiny`() {
+        assertEquals(WhisperTranscriber.MODEL_TINY, WhisperTranscriber.modelFileNameFor("tiny"))
+    }
+
+    @Test
+    fun `modelFileNameForUnknown_returnsModelBase`() {
+        assertEquals(WhisperTranscriber.MODEL_BASE, WhisperTranscriber.modelFileNameFor("unknown"))
     }
 
     // --- Model availability ---
@@ -49,17 +69,27 @@ class WhisperTranscriberTest {
     }
 
     @Test
-    fun `givenModelFilePresent_whenCheckingIsModelAvailable_thenReturnsTrue`() {
+    fun `givenBaseModelFilePresent_whenCheckingIsModelAvailable_thenReturnsTrue`() {
         val modelsDir = File(tempDir, "models").also { it.mkdirs() }
-        File(modelsDir, "whisper-base-en.bin").createNewFile()
+        File(modelsDir, WhisperTranscriber.MODEL_BASE).createNewFile()
         val transcriber = WhisperTranscriber(mockContext)
         assertTrue(transcriber.isModelAvailable)
     }
 
     @Test
-    fun `givenWrongFileName_whenCheckingIsModelAvailable_thenReturnsFalse`() {
+    fun `givenTinyModelSelected_andTinyFilePresent_whenCheckingIsModelAvailable_thenReturnsTrue`() {
         val modelsDir = File(tempDir, "models").also { it.mkdirs() }
-        File(modelsDir, "whisper-base-en.tflite").createNewFile() // old format
+        File(modelsDir, WhisperTranscriber.MODEL_TINY).createNewFile()
+        val transcriber = WhisperTranscriber(mockContext).also {
+            it.modelFileName = WhisperTranscriber.MODEL_TINY
+        }
+        assertTrue(transcriber.isModelAvailable)
+    }
+
+    @Test
+    fun `givenOldTfliteFile_whenCheckingIsModelAvailable_thenReturnsFalse`() {
+        val modelsDir = File(tempDir, "models").also { it.mkdirs() }
+        File(modelsDir, "whisper-base-en.tflite").createNewFile()
         val transcriber = WhisperTranscriber(mockContext)
         assertFalse(transcriber.isModelAvailable)
     }
@@ -70,8 +100,6 @@ class WhisperTranscriberTest {
     fun `givenMissingModelFile_whenLoadModelCalled_thenThrowsException`() {
         val transcriber = WhisperTranscriber(mockContext)
         assertThrows(Exception::class.java) {
-            // loadModel is suspend but throws immediately for missing file
-            // We test the non-coroutine path via reflection or direct check
             if (!transcriber.isModelAvailable) {
                 throw IllegalStateException("Model file not found")
             }
@@ -86,7 +114,6 @@ class WhisperTranscriberTest {
         val file = File.createTempFile("dummy", ".wav")
         try {
             assertThrows(IllegalStateException::class.java) {
-                // whisper is null → throws IllegalStateException
                 val field = WhisperTranscriber::class.java.getDeclaredField("whisper")
                 field.isAccessible = true
                 val whisper = field.get(transcriber)
@@ -102,7 +129,7 @@ class WhisperTranscriberTest {
     @Test
     fun `givenModelNotLoaded_whenReleaseCalled_thenDoesNotThrow`() {
         val transcriber = WhisperTranscriber(mockContext)
-        transcriber.release() // safe with no model
+        transcriber.release()
     }
 
     @Test
